@@ -1,180 +1,153 @@
+import { watch, type FSWatcher } from 'node:fs'
+import { readdir, readFile } from 'node:fs/promises'
+import { join } from 'node:path'
+
 /**
- * The skills dsh-film ships: Markdown instructions under the package's
- * `skills/` folder, offered to the agent through DSH's skill registry
- * (`ctx.skills`, @deepseek-ai/dsh-skill) the way DSH's own bundled Office
- * skills are (packages/skill/skill-office). The model sees each skill's name
- * and description in its catalog, loads the body with the `skill` tool and
- * reads the references beside it with `read`.
+ * The workbench's skills, offered to the VibeDev session.
  *
- * Studio staged its film skills (skills/write-vibedev-screenplay and its
- * siblings) into every film project; here the provider lists them in every
- * workspace instead, so a request like “帮我写个短片剧本” in a fresh chat finds
- * the skill, which then starts the film with `film_project`.
+ * The workbench no longer has an agent of its own; its skills (how to drive the
+ * canvas, how to turn an idea, a novel or a script into a film) were written for
+ * that agent. Registered here they join the session's own skill catalog, so:
  *
- * The registry's types are mirrored structurally below rather than imported:
- * the plugin has no dependency on @deepseek-ai/dsh-skill, and a profile
- * without the registry simply never calls this module.
- * @module dsh-film/skills
+ * - the model picks them by description when the user asks for a drama, a
+ *   storyboard, a promo… — no special syntax needed;
+ * - the user can call them explicitly with `/vibedev-film`, `/film-workflow`, … in
+ *   the composer, the same way as every other skill.
+ *
+ * Each body gets a short preface mapping the workbench's tool names onto
+ * `film_call`, and the skill directory is its resource base, so the
+ * `references/…` files it cites are read with the session's own file tools.
+ * Skills the user created in the workbench (data/skills) are offered too; the
+ * data directory copy wins over the packaged one.
  */
 
-import { readFileSync } from 'node:fs'
-import { readFile } from 'node:fs/promises'
-import { join } from 'node:path'
-import { fileURLToPath } from 'node:url'
-import type { Context } from '@deepseek-ai/cordis'
+/** Same rule as the host registry (`isSkillName`). */
+const SKILL_NAME = /^[a-z0-9]+(?:-[a-z0-9]+)*$/
+/** The host's rank for bundled skills: project and user skills of the same name win. */
+const BUNDLED_SKILL_RANK = 600
+const PROVIDER = 'vibedev-film'
+const ENTRY = 'vibedev-film'
 
-/** The provider name the registry files these skills under. */
-export const FILM_SKILL_PROVIDER = 'dsh-film'
-
-/** The registry's rank for packaged skills (BUNDLED_SKILL_RANK): a user's own same-named skill shadows ours. */
-export const FILM_SKILL_RANK = 600
-
-/** The skills in the package, by folder name; each folder holds a SKILL.md named the same. */
-export const FILM_SKILL_NAMES: readonly string[] = ['film-screenwriting']
-
-/** The package's skills folder: `<package>/skills/`, from both `src/` and the built `lib/`. */
-export const SKILLS_ROOT = fileURLToPath(new URL('../skills/', import.meta.url))
-
-const SKILL_NAME = /^[a-z0-9]+(?:-[a-z0-9]+)*$/u
-
-/** What a skill catalog entry carries (dsh-skill's SkillCandidate). */
-export interface FilmSkillCandidate {
+interface Candidate {
   readonly name: string
   readonly description: string
-  readonly path: string
   readonly invocation: { readonly modelInvocable: boolean; readonly userInvocable: boolean }
   readonly source: string
   readonly provider: string
-  readonly resourceBase: { readonly kind: 'directory'; readonly path: string }
   readonly rank: number
   readonly locator: unknown
-  readonly metadata?: Readonly<Record<string, unknown>>
+  readonly path?: string
+  readonly resourceBase?: { readonly kind: 'directory'; readonly path: string }
 }
 
-/** A loaded skill (dsh-skill's SkillDefinition): the catalog entry without rank and locator, plus the body. */
-export type FilmSkillDefinition = Omit<FilmSkillCandidate, 'rank' | 'locator'> & { readonly content: string }
-
-/** The provider contract (dsh-skill's SkillProvider). */
-export interface FilmSkillProvider {
-  readonly name: string
-  list(options: { cwd?: string | undefined; signal?: AbortSignal | undefined }): Promise<readonly FilmSkillCandidate[]>
-  get(candidate: FilmSkillCandidate, options: { cwd?: string | undefined; signal?: AbortSignal | undefined }): Promise<FilmSkillDefinition | undefined>
+/** The slice of `ctx.skills` used here; typed structurally (no monorepo types). */
+export interface SkillRegistryLike {
+  registerProvider(create: (control: { signal: AbortSignal; invalidate(): void }) => {
+    readonly name: string
+    list(options: { signal?: AbortSignal }): Promise<readonly Candidate[]>
+    get(candidate: Candidate, options: { signal?: AbortSignal }): Promise<(Omit<Candidate, 'rank' | 'locator'> & { content: string }) | undefined>
+  }): () => void
 }
 
-/** The part of the skill registry this plugin uses. */
-export interface SkillsServiceLike {
-  registerProvider(create: (control: { signal: AbortSignal; invalidate: () => void }) => FilmSkillProvider): () => void
+type Locator = { kind: 'entry' } | { kind: 'file'; file: string; directory: string; original: string }
+
+/** Split YAML frontmatter from the body; only `description` is needed from it. */
+export function parseSkillFile(raw: string): { description: string; body: string } | undefined {
+  const match = /^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/.exec(raw)
+  if (match === null) return undefined
+  const line = /^description:\s*(.+)$/m.exec(match[1]!)?.[1]?.trim()
+  if (line === undefined || line === '') return undefined
+  const description = line.replace(/^(["'])(.*)\1$/, '$2')
+  return { description, body: raw.slice(match[0].length).trim() }
 }
 
-/** A SKILL.md split into its frontmatter fields and its body. */
-export interface ParsedSkillFile {
-  name: string
-  description: string
-  metadata?: Record<string, string>
-  content: string
+/** How a workbench skill maps onto the session's tools. */
+export function preface(original: string, directory: string): string {
+  return [
+    `> 这是「影视工作台」（VibeDev Film）的技能「${original}」，原为工作台内置 agent 编写。在 VibeDev 对话里使用时：`,
+    '> - 先调用 `film_studio_open` 在侧栏打开工作台（已打开会直接返回）。',
+    '> - 文中提到的工作台工具（getCanvas、addNode、connectNodes、nodeTools、arrangeCanvas、listMediaModels、generateImage、generateVideo、generateAudio、videoComposer、convertNovelToTxt、assetOperator、skillOperator、workspaceFiles 等）都通过 `film_call` 调用：`film_call({ name: "<工具名>", args: { … } })`；不确定参数时先 `film_tools({ name: "<工具名>" })`。',
+    '> - 文中的 read / write / edit / ls 等文件操作与"询问用户"，用你自己的文件工具和提问方式。',
+    `> - 文中引用的 \`references/…\` 文件在本技能目录：\`${directory}\`。`,
+    '> - 生成会使用用户已登录的 VibeDev 账号并产生费用：按用户的要求生成。',
+  ].join('\n')
 }
 
-const unquote = (value: string): string => /^(["']).*\1$/u.test(value) ? value.slice(1, -1) : value
+const entryContent = [
+  '# 影视工作台（VibeDev Film）',
+  '',
+  '用户想做短剧、漫剧、动画、宣传片、MV、分镜、剧本，或者把创意、小说、剧本做成视频时使用。',
+  '',
+  '1. 调用 `film_studio_open`：在本对话的右侧栏打开影视工作台，直接进入本工作区的项目（工作区下的「VibeDev Film」文件夹）。',
+  '2. `film_call({ name: "getAppState", args: {} })`：看当前项目、画布和可用的节点工具。',
+  '3. 按用户的需求制作：完整流程（从创意/小说/剧本到图片资产、视频片段、成片）读技能 `film-workflow`；画布的具体操作（建节点、连线、调用节点功能、排版）读技能 `film-canvas`。',
+  '4. 所有工作台操作都用 `film_call`，可用操作与参数用 `film_tools` 查看。',
+  '',
+  '3D 导演台（模型动画与运镜）没有自己的 agent，由你来编辑：先对导演台节点调用 `node:getDirector`，读它返回的 rules（人偶关节、关键帧、运镜的硬性规则）、已有方案、取景锚点和连线素材；再 `node:startPlanDraft`（写明本次指令）→ `node:readPlanDraft` / `node:editPlanDraft` → `node:savePlanDraft` 保存为新方案；需要时 `node:exportPlanVideo` 把方案渲染成画布上的视频节点，作为视频生成的动作/运镜参考。',
+  '',
+  '用户切到别的标签页或别的对话时工作台仍在后台运行，可以继续操作；用户关掉工作台标签页后先再调用 `film_studio_open`。',
+  '生成会使用用户已登录的 VibeDev 账号并产生费用：按用户的要求生成，不做无关的试验性生成。',
+].join('\n')
 
 /**
- * Parse a packaged SKILL.md. Only the frontmatter subset the shipped files use
- * is accepted — single-line `name` and `description`, and a `metadata:` block
- * of `  key: value` lines — so the plugin needs no YAML parser; anything else
- * is a packaging mistake and throws, as skill-office does.
- * @param raw - the file's text.
- * @param path - the file's path, for messages.
- * @returns the fields and the body without frontmatter.
+ * Register the workbench skills with the session's skill registry.
+ * @param skills - `ctx.skills`.
+ * @param roots - where the workbench keeps its skills: the data directory first, then the packaged app.
+ * @returns the registration disposer.
  */
-export function parseSkillFile(raw: string, path: string): ParsedSkillFile {
-  const lines = raw.replace(/^﻿/u, '').split(/\r?\n/u)
-  if (lines[0] !== '---') throw new Error(`dsh-film: ${path} has no frontmatter`)
-  const end = lines.indexOf('---', 1)
-  if (end < 0) throw new Error(`dsh-film: ${path} has unclosed frontmatter`)
-  const fields: Record<string, string> = {}
-  const metadata: Record<string, string> = {}
-  let inMetadata = false
-  for (const line of lines.slice(1, end)) {
-    const nested = /^ {2}([A-Za-z0-9_-]+):\s*(.*)$/u.exec(line)
-    if (inMetadata && nested !== null) {
-      metadata[nested[1]!] = unquote(nested[2]!.trim())
-      continue
+export function registerFilmSkills(skills: SkillRegistryLike, roots: () => readonly string[], watched: () => readonly string[] = () => []): () => void {
+  return skills.registerProvider((control) => {
+    // A skill the user creates or edits in the workbench shows up without a restart.
+    // Only the data directory is watched: on Windows a watched folder cannot be
+    // renamed together with its parents, and the packaged skills only change when a
+    // new version is installed — which a watch there blocked.
+    const watchers: FSWatcher[] = []
+    for (const root of watched()) {
+      try { watchers.push(watch(root, { recursive: true }, () => { control.invalidate() })) } catch { /* not there yet */ }
     }
-    const top = /^([A-Za-z0-9_-]+):\s*(.*)$/u.exec(line)
-    if (top === null) throw new Error(`dsh-film: ${path} has an unsupported frontmatter line: ${line}`)
-    inMetadata = top[1] === 'metadata' && top[2]!.trim() === ''
-    if (!inMetadata) fields[top[1]!] = unquote(top[2]!.trim())
-  }
-  const name = fields.name ?? ''
-  const description = fields.description ?? ''
-  if (!SKILL_NAME.test(name)) throw new Error(`dsh-film: ${path} needs a kebab-case name`)
-  if (description === '') throw new Error(`dsh-film: ${path} needs a description`)
-  return {
-    name,
-    description,
-    ...(Object.keys(metadata).length > 0 ? { metadata } : {}),
-    content: lines.slice(end + 1).join('\n').trim(),
-  }
-}
+    control.signal.addEventListener('abort', () => { for (const watcher of watchers) watcher.close() }, { once: true })
 
-/**
- * The catalog entries of the packaged skills, read once: a skill whose folder
- * and name disagree would be listed under one name and never found under it.
- * @param root - the skills folder.
- * @param names - the skill folders to list.
- * @returns one candidate per skill.
- */
-export function filmSkillCandidates(root: string = SKILLS_ROOT, names: readonly string[] = FILM_SKILL_NAMES): FilmSkillCandidate[] {
-  return names.map((skill) => {
-    const directory = join(root, skill)
-    const path = join(directory, 'SKILL.md')
-    const parsed = parseSkillFile(readFileSync(path, 'utf8'), path)
-    if (parsed.name !== skill) throw new Error(`dsh-film: ${path} is named ${parsed.name}, not ${skill}`)
-    return {
-      name: parsed.name,
-      description: parsed.description,
-      path,
+    const entry: Candidate = {
+      name: ENTRY,
+      description: '影视创作入口：用户要做短剧、漫剧、动画、宣传片、MV、分镜、剧本，或把创意、小说、剧本做成视频时使用。打开影视工作台并在它的画布上按需求制作（节点、图片/视频/音频生成、剪辑成片）。',
       invocation: { modelInvocable: true, userInvocable: true },
-      source: 'bundled',
-      provider: FILM_SKILL_PROVIDER,
-      resourceBase: { kind: 'directory', path: directory },
-      rank: FILM_SKILL_RANK,
-      locator: path,
-      ...(parsed.metadata !== undefined ? { metadata: parsed.metadata } : {}),
+      source: 'bundled', provider: PROVIDER, rank: BUNDLED_SKILL_RANK, locator: { kind: 'entry' } satisfies Locator,
+    }
+    return {
+      name: PROVIDER,
+      async list(options) {
+        const found = new Map<string, Candidate>()
+        for (const root of roots()) {
+          const directories = await readdir(root, { withFileTypes: true }).catch(() => [])
+          for (const directory of directories) {
+            if (!directory.isDirectory()) continue
+            const name = `film-${directory.name.toLowerCase()}`
+            if (found.has(name) || !SKILL_NAME.test(name) || name === ENTRY) continue
+            const folder = join(root, directory.name)
+            const file = join(folder, 'SKILL.md')
+            const raw = await readFile(file, { encoding: 'utf8', ...options.signal === undefined ? {} : { signal: options.signal } }).catch(() => undefined)
+            const parsed = raw === undefined ? undefined : parseSkillFile(raw)
+            if (parsed === undefined) continue
+            found.set(name, {
+              name, description: parsed.description, path: file,
+              invocation: { modelInvocable: true, userInvocable: true },
+              source: 'bundled', provider: PROVIDER, rank: BUNDLED_SKILL_RANK,
+              resourceBase: { kind: 'directory', path: folder },
+              locator: { kind: 'file', file, directory: folder, original: directory.name } satisfies Locator,
+            })
+          }
+        }
+        return [entry, ...found.values()]
+      },
+      async get(candidate, options) {
+        const { rank: _rank, locator: rawLocator, ...summary } = candidate
+        const locator = rawLocator as Locator
+        if (locator.kind === 'entry') return { ...summary, content: entryContent }
+        const raw = await readFile(locator.file, { encoding: 'utf8', ...options.signal === undefined ? {} : { signal: options.signal } }).catch(() => undefined)
+        const parsed = raw === undefined ? undefined : parseSkillFile(raw)
+        if (parsed === undefined) return undefined
+        return { ...summary, content: `${preface(locator.original, locator.directory)}\n\n${parsed.body}` }
+      },
     }
   })
-}
-
-/**
- * The provider over the packaged skills. Bodies are read again on every load
- * (the registry never caches them), so an updated package is picked up
- * without a restart.
- * @param candidates - the catalog entries.
- * @returns the provider.
- */
-export function filmSkillProvider(candidates: readonly FilmSkillCandidate[]): FilmSkillProvider {
-  return {
-    name: FILM_SKILL_PROVIDER,
-    list: () => Promise.resolve(candidates),
-    async get(candidate, options) {
-      const { rank: _rank, locator, ...summary } = candidate
-      const raw = await readFile(String(locator), { encoding: 'utf8', signal: options.signal }).catch(() => undefined)
-      if (raw === undefined) return undefined
-      return { ...summary, content: parseSkillFile(raw, String(locator)).content }
-    },
-  }
-}
-
-/**
- * Register the packaged skills with the skill registry. Call it synchronously
- * from a context that injects `skills`; the registration lives as long as
- * that context.
- * @param ctx - a context with the `skills` service.
- * @param root - the skills folder.
- * @returns the registry's disposer for the registration.
- */
-export function registerFilmSkills(ctx: Context, root: string = SKILLS_ROOT): () => void {
-  const skills = ctx.get('skills') as SkillsServiceLike | undefined
-  if (skills === undefined) throw new Error('dsh-film: the skills service is not available')
-  const provider = filmSkillProvider(filmSkillCandidates(root))
-  return skills.registerProvider(() => provider)
 }

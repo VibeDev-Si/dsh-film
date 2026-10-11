@@ -1,311 +1,66 @@
 # dsh-film · VibeDev 影视工作台
 
-在 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 和 VibeDev 里做片：聊天右侧的侧栏多出两个标签——**剧本、分镜画布**；**导演台**不再是独立标签，改在分镜画布里以 3D 导演台节点打开。左边和 Agent 聊，右边看和改成果。项目是工作区里 `film/` 下的普通文件；Agent 用专门的影视工具改剧本和分镜、调度导演台（见下），和右边看到的是同一份。
+在 DeepSeek Harness 和 VibeDev 的右侧栏打开画布式影视工作台：小说拆解、剧本、分镜画布、图片 / 视频 / 音频生成、导演台、剪辑成片。所有模型和费用都走 **VibeDev 账号**（`@vibedev-si/dsh-vibedev`），不需要填写任何模型 API Key。
 
-> 0.4.0 正式版加入跨项目共享资产库，并整理了画布生成面板、右键菜单和视频时间线。分镜画布（含导演台）运行在插件自己的接口上；剧本标签按 DSH 界面实现，文件格式与 VibeDev Studio 的编剧台相同。图片、视频的生成由可选的「VibeDev 账号与模型」插件 [@vibedev-si/dsh-vibedev](https://github.com/VibeDev-Si/dsh-vibedev)（原 dsh-media）负责。
+[English](#english)
 
-A film workbench for DeepSeek Harness and VibeDev: two right-sidebar tabs — script and storyboard; the director desk opens inside the storyboard canvas as a 3D director node. Each workspace keeps its film as plain files under `film/`, and the agent works on the same film through its film tools. The 0.4.0 stable release adds a shared asset library across local projects and refines generation panels, context menus and video timelines. The storyboard runs on the plugin's API, and the script tab is DSH-native.
+## 0.5.0：换成新的工作台
 
-## 安装 · Install
+从 0.5.0 起，`dsh-film` 是基于 ToonFlow 的画布式工作台，取代 0.4.0 及更早的旧工作台。在 VibeDev 生态（插件中心）里更新即可，配置条目仍是 `dsh-film`；旧工作台的项目文件不会被删除，也不会自动转换。
 
-需要 DeepSeek Harness 0.2.x，或基于它的 VibeDev（VibeDev Next）。插件以包名 `dsh-film` 发布在 npm 官方源；中国大陆镜像源（registry.npmmirror.com）从 npm 同步，新版本一般稍后就有。
+- **只支持 Windows x64**：插件自带运行时（Bun），用户不用另外安装任何东西。
+- **需要 VibeDev 账号插件**：图片和视频生成需要 0.2.7 及以上；音频生成（音乐、播客、语音）需要 **0.3.1 及以上**。
 
-**插件页（推荐）**：在 VibeDev 或 DeepSeek Harness 的“插件”页点“添加插件”，选“安装第三方插件”（按包名或地址安装），在“包名或地址”里填 `dsh-film`。展开“安装源”，选“npm 官方源”或“中国大陆镜像源”（国内网络选镜像源通常更快），再点“安装”。
+## 生成节点的费用
 
-**命令行**：
+图片、视频、音频生成节点会在发送键左边显示预计费用，悬停可以看到计算方式。价格来自你的 VibeDev 账号（已按账号倍率换算），实际以 VibeDev 扣费为准，失败的任务不扣费。
 
-- DeepSeek Harness 桌面版：先完全退出桌面版，再运行下面的命令（`dsh` 命令在桌面版应用菜单的“管理 dsh 命令…”里安装）：
+| 节点 | 显示 |
+| --- | --- |
+| 图片 | 按张计费，例如 `¥0.10`；尺寸档位有单独价格时按所选尺寸算 |
+| 视频（按次） | 例如 `¥2.00` |
+| 视频（按秒） | 单价 × 所选时长（按所选分辨率），例如 `约 ¥4.95`；接了参考视频时显示「起」，参考视频的时长另计 |
+| 音乐、播客 | 按次，例如 `¥0.50` |
+| 语音 | 按原始秒计费，例如 `¥0.015/原始秒`；按服务商返回的原始时长结算，生成后节点上分开显示播放时长和计费原始时长 |
+| 未定价 | 虚线框的「未定价」，表示目录没有给出价格，**不代表免费** |
 
-  ```bash
-  dsh plugin --profile desktop add dsh-film
-  ```
+## 音频生成节点
 
-- VibeDev（VibeDev Next）桌面版：命令叫 `vibedev-app`，在应用菜单的“管理 vibedev-app 命令…”里安装。同样先完全退出应用，再运行：
+使用 VibeDev 音频模型时，节点只显示所选模型声明的参数：
 
-  ```bash
-  vibedev-app plugin --profile desktop add dsh-film
-  ```
+- **音乐**：提示词，以及歌词、曲风、情绪、人声；
+- **播客**：话题，以及网页链接（只给链接也可以）；
+- **语音**：提示词就是要朗读的原文；可以连音频节点作为参考音色，数量、时长和格式按模型要求检查；输出格式和采样率只列模型支持的组合，例如 WAV 和 MP3 各有自己的采样率。
 
-  VibeDev 的数据在 `~/.vibedev-app`，用 `dsh` 命令装的插件到不了它那里。
+一次点击就是一次生成：页面刷新或断线后，节点会接着跟进同一个任务，不会重复生成；结果已经出来、只是费用还在结算时，结果照常保存。
 
-- 用 npm 安装的 `dsh` 命令行（终端或 Web 版）：
+## 第三方内容
 
-  ```bash
-  dsh plugin add dsh-film
-  ```
+- 工作台主体来自 [ToonFlow](https://github.com/HBAI-Ltd/Toonflow-app)（MIT），许可文本见 `licenses/ToonFlow-LICENSE.txt`。
+- 内置的剪辑台 Pro 节点、本地成片工具、小说转 TXT 工具和三个技能，来源见 `docs/THIRD-PARTY.md`。
 
-**从 GitHub Release 安装**：插件页的“包名或地址”和上面的命令也接受 Release 里的 `.tgz` 直链，例如
+## 开发
 
-```
-https://github.com/VibeDev-Si/dsh-film/releases/download/v0.4.0/dsh-film-0.4.0.tgz
-```
-
-直链不经过安装源，需要本机能直接访问 GitHub（或配好代理）。包约 3 MB。网速很慢时仍可能超过 pnpm 默认的 60 秒下载时限而失败：这时改为按包名从中国大陆镜像源安装；也可以把时限调长：pnpm 11（DeepSeek Harness 和 VibeDev 桌面版自带的就是它）不再从 `~/.npmrc` 读取这个设置，要在 pnpm 的全局配置 `config.yaml` 里加一行 `fetchTimeout: 600000`（Windows：`%LOCALAPPDATA%\pnpm\config\config.yaml`；macOS：`~/Library/Preferences/pnpm/config.yaml`；Linux：`~/.config/pnpm/config.yaml`），或设环境变量 `pnpm_config_fetch_timeout=600000`；pnpm 10 及更早的版本则在 `~/.npmrc` 里加 `fetch-timeout=600000`。
-
-**刚发布的版本**：pnpm 11 默认只安装发布满一天的版本（`minimumReleaseAge`）。第一个版本不受影响：按包名安装一个此前没有任何版本的包时，pnpm 照样装上它，并把它记进 `minimumReleaseAgeExclude`。之后每次发布新版本，头一天按包名安装得到的是上一个版本；要马上装新版本，按确切版本安装（包名写成 `dsh-film@<版本>`），或者用上面的 Release 直链。
-
-**不能从 Git 仓库安装**：不要在插件页填仓库地址 `https://github.com/VibeDev-Si/dsh-film`，也不要对它运行 `dsh plugin add`。`lib/`、`client/` 和 `apps/`（分镜画布和导演台的前端）都是构建产物，不在 git 里，从仓库安装会失败（不会留下装了却用不了的插件）。
-
-**「VibeDev 账号与模型」插件是可选的**：只有在分镜画布里生成图片和视频才需要另装 [@vibedev-si/dsh-vibedev](https://github.com/VibeDev-Si/dsh-vibedev)（原 dsh-media，包名 `@vibedev-si/dsh-vibedev`，装法相同；在侧边栏底部或「设置 → VibeDev 账号」登录 VibeDev，走 VibeDev 网关，按用量从 VibeDev 余额扣费）。不装也能写剧本、排分镜和调度导演台；从 VibeDev 插件中心安装影视工作台时会把它一并装上。分镜画布给每个视频模型列出的模式与该插件实际接受的一致：声明不收首帧的线路（Seedance 2.5（VibeDev）、2.5 30s（VibeDev）、2.5 480p 30s（山海）和三条 lec 线路；Seedance 2.5 特价按次收首帧，仍有图生视频）不显示“图生视频”，接一张图时改走“全能参考”，图作为参考图发送；以前保存成“图生视频”的节点在这些线路上也按全能参考生成。
-
-装好后打开任意会话的右侧侧栏，在“开始”页点“剧本”等入口。会话需要有工作区。第一次打开任一影视标签时，插件自动在工作区里建好影片（片名取工作区文件夹名，画幅 16:9，连同一张空白分镜画布），不用填表。片名和画幅在两个标签共用的标题栏里改：点片名直接改（最多 80 字，回车或点别处保存，Esc 取消）；画幅是这部片子的画面比例，分镜画布和导演台都按它来，菜单里有 16:9、9:16、1:1、4:5、21:9、2.39:1。0.1.0 建的 4:3 影片照旧保留并显示为 4:3。
-
-**升级**：按上面的方法直接安装新版本即可，会覆盖旧版本，不用先卸载。装好后要重启 DeepSeek Harness / VibeDev，新版本才会生效；重启之前，影视工作台顶部会显示提示横幅，分镜画布和导演台也先不打开。影片是工作区里 `film/` 下的文件，升级和卸载插件都不会动它们。
-
-Requires DeepSeek Harness 0.2.x or VibeDev (VibeDev Next), which is built on it. The plugin is published to npm as `dsh-film`; the npmmirror China mirror syncs from npm.
-
-- **Plugin page** (recommended): Plugins → Add plugin → install a third-party plugin by package name, enter `dsh-film`, pick the npm registry or the China mirror under the install source, and install.
-- **Command line**: for the DeepSeek Harness desktop app, quit it fully, then run `dsh plugin --profile desktop add dsh-film` (the `dsh` command is installed from the app menu). VibeDev Next's command is `vibedev-app` (app menu → Manage vibedev-app Command…): quit the app fully, then run `vibedev-app plugin --profile desktop add dsh-film`; it keeps its data in `~/.vibedev-app`, which `dsh` does not reach. With the npm `dsh` CLI, run `dsh plugin add dsh-film`.
-- **GitHub Release**: the plugin page and the commands also take the release asset URL, e.g. `https://github.com/VibeDev-Si/dsh-film/releases/download/v0.4.0/dsh-film-0.4.0.tgz`. It is fetched straight from GitHub, not through a registry. The file is about 3 MB; if a very slow connection still hits pnpm's default 60-second fetch timeout, install by name from the mirror instead, or raise the timeout — pnpm 11 (the one the desktop apps ship) no longer reads it from `~/.npmrc`, so add `fetchTimeout: 600000` to pnpm's global `config.yaml` (Windows `%LOCALAPPDATA%\pnpm\config\config.yaml`, macOS `~/Library/Preferences/pnpm/config.yaml`, Linux `~/.config/pnpm/config.yaml`) or set `pnpm_config_fetch_timeout=600000`; pnpm 10 and earlier take `fetch-timeout=600000` in `~/.npmrc`.
-- **A fresh release**: pnpm 11 installs only versions published at least a day ago (`minimumReleaseAge`). The very first version is not held back: installing by name a package with no earlier version installs it and adds it to `minimumReleaseAgeExclude`. After each later release, an install by name gets the previous version for a day; to get the new one at once, install the exact version (`dsh-film@<version>`) or use the release URL.
-- **Not from the git repository**: `lib/`, `client/` and `apps/` (the storyboard and director desk front ends) are build outputs that are not in git, so installing from the repository URL fails (it does not leave a plugin that cannot work).
-- **The VibeDev account & models plugin is optional**: only image and video generation on the storyboard needs [@vibedev-si/dsh-vibedev](https://github.com/VibeDev-Si/dsh-vibedev) (formerly dsh-media; sign in to VibeDev at the bottom of the sidebar or in Settings → VibeDev account). Everything else works without it; installing the workbench from the VibeDev Plugin Center installs it too. The storyboard lists for each video model the modes that plugin accepts: lanes that declare no first frame (Seedance 2.5 (VibeDev), 2.5 30s (VibeDev), 2.5 480p 30s (山海) and the three lec lanes; Seedance 2.5 特价按次 takes a first frame and keeps image-to-video) offer no image-to-video, and a single image goes as a 全能参考 (multi-reference) reference image instead, also for nodes saved as image-to-video earlier.
-
-Then open the right sidebar of a session that has a workspace and pick a part on its start page. The first time a film tab opens, the plugin creates the film — named after the workspace folder, 16:9, with an empty storyboard — with no form to fill in. Rename it and pick its frame in the header the two tabs share: click the title to edit it (up to 80 characters; Enter or clicking away saves, Esc cancels); the frame is the film's aspect ratio, which the storyboard canvas and the director desk use (16:9, 9:16, 1:1, 4:5, 21:9, 2.39:1). A 4:3 film made by 0.1.0 keeps and shows its frame. To upgrade, install the new version over the old one (no need to uninstall first), then restart DeepSeek Harness / VibeDev: until you do, the workbench shows a banner asking for the restart and does not open the storyboard or the director desk. Your film stays in the workspace's `film/` folder either way.
-
-### 0.4.0 版本说明 · 0.4.0 release notes
-
-- **跨项目资产库**：资产保存在当前电脑用户的 `~/.vibedev/film/assets`，同一电脑上不同目录的影片项目可复用；支持分类、预览、重命名、移动、标签、回收站和恢复。保存时复制原始素材，添加到画布时复制进当前项目；整个文件夹可作为一个资产包添加为组。已有项目素材不会被自动扫描或搬迁。
-- **紧凑画布**：浅色、深色主题统一生成面板、参考缩略图、参数选择和菜单比例；缩略图支持悬浮预览，视频时长按模型支持的范围拖动选择，常用节点操作收进右键菜单，双击媒体节点可放大预览。
-- **视频时间线**：收起时显示胶片帧条，悬浮展开，点击固定；播放与编辑期间保持展开，通过小图标收起。保留剪切、出片及原有生成参数校验。
-- **侧栏与默认选项**：侧栏多选联动画布选中，分组展示文件树层级并支持双击改名。新节点按类型记住用户选择的模型，首次按可用网关模型选择；默认生成一张图片，内置节点插件默认启用。
-- **提示词编写**：3D 全景节点向 VibeDev 传递全景投影用途。视频叙事建议以 2–3 秒的镜头推进，保留必要长镜头；每段独立生成视频的动作时间从 `0` 起算，整片时间仅用于剪辑定位，避免把第二段的 `31–60 秒` 直接写进一个 30 秒视频。
-
-- **Shared local assets**: reuse assets across project folders through `~/.vibedev/film/assets`, with categories, previews, renaming, moves, tags, trash and restore. Saving copies the original media; adding it to a board copies it into that project. Import a folder as a grouped asset pack. Existing project files are not scanned or moved automatically.
-- **Compact canvas and timeline**: consistent light/dark generation panels, hover previews, model-aware duration sliders, context menus and enlarged media previews. A collapsed video timeline shows its filmstrip; hover to expand, click to pin, and use its compact control to collapse. Existing editing operations and generation validation remain available.
-- **Selection and defaults**: sidebar multi-selection selects canvas nodes, groups have a tree hierarchy and double-click renaming, and new nodes remember the chosen model per media type. Image generation defaults to one image and bundled node plugins are enabled.
-- **Prompt writing**: panorama nodes pass their projection purpose to the writer. Narrative video guidance recommends 2–3 second shots where appropriate, respects necessary long takes, and starts each independently generated clip at local time `0`; whole-film timestamps remain editing metadata.
-
-### 0.3.7 版本说明 · 0.3.7 release note
-
-- **拼接变成一条可编辑的时间线**：选中两个以上视频节点点「拼接」，弹窗里不再是只能拖动排序的列表，而是一条单轨时间线——每段按真实时长成比例排开，可以拖动换位置、拖两端把手改入点出点、在播放头处「切开」、删除某一段，点标尺把播放头放到任意位置；预览按这条轨道播放并跟着播放头走，选中一段还能用秒数输入框精确调起止点。所有编辑都只是草稿，点「拼接」才按你排好的顺序和区间出片，取消不改动原来的节点（同一个源节点可能因切开而出现两次，这是正常的）。仍然只做剪切与拼接：没有转场、配乐、特效和变速，一次最多 20 段、最短 0.1 秒，规格不一致时照旧在页面里重新编码。
-- **The join is now an editable single track**: the 拼接 dialog is a timeline rather than a reorderable list — blocks run in proportion to each clip's real length, and you can drag them into a new order, trim either end by its handle, split at the playhead, delete a segment, or click the ruler to move the playhead; the preview plays that track with the playhead following it, and a selected block takes typed start and end values. Every edit is a draft: only 拼接 hands the ranges to the host, and cancelling changes no node (one source may appear twice after a split). Still cutting and joining only — no transitions, music, effects or re-timing — at most 20 parts, at least 0.1 s each, with the page re-encoding when the clips differ.
-- **节点生成面板的滚动条可以拖了**：以前在面板里按下会被当成选中节点并开始拖动节点，右侧滚动条拖不动；现在落在滚动条上的按下不再触发选中和节点拖动，滚轮、文本选择、拖节点边框和画布平移都不受影响。
-- **The node panel's scrollbar drags again**: a press inside the panel used to select the node and start dragging it, so the panel's own scrollbar would not move; a press on the scrollbar no longer selects or drags the node, while the wheel, text selection, dragging the node by its border and Space-to-pan are unchanged.
-
-### 0.3.6 版本说明 · 0.3.6 release note
-
-- **右侧栏从三个标签减为两个：剧本、分镜画布**。**导演台不再是独立标签**，改在分镜画布里以 3D 导演台节点打开：画布入口不变，台内的场景、机位、审阅和全部 `director_*` 工具都不变。Agent 的导航说明也同步改成「在分镜画布里打开对应导演台节点」。
-- **旧标签不会自动消失**：升级前导演台标签还开着的话，重启后会显示宿主自带的「不可用」提示，**请用户自己关一次**。插件**不会**自动移除该标签，也**不会**删除任何数据或未保存的 3D 场景。
-- 其余内容与 0.3.5 相同（含 0.3.4 的范围响应修复与 0.3.5 的「兼容播放」入口）。
-
-- **The right sidebar now has two tabs — script and storyboard**. The **director desk is no longer a tab of its own**: it opens inside the storyboard canvas as a 3D director node (the canvas entry is unchanged, and the desk's scenes, cameras, reviews and every `director_*` tool are unchanged). The Agent's own guidance now says "open the director node in the storyboard canvas".
-- **An old tab is not removed by itself**: if the director desk tab was still open before the upgrade, after the restart it shows the host's own "unavailable" notice — **ask the user to close it once**. The plugin does **not** remove that tab, and does **not** delete any data or unsaved 3D scene.
-- Everything else matches 0.3.5 (including 0.3.4's range-response fix and 0.3.5's "Prepare playback" entry).
-
-### 0.3.5 版本说明 · 0.3.5 release note
-
-- **官方旧桌面（旧转发）下的「兼容播放」**：官方 DSH 旧转发让播放器学不到可定位区间（进度条点不动、无法拖动）时，视频节点和放大预览会多一个「兼容播放」按钮；用户点一次才**完整读取当前视频**，读完按播放键即可播放并拖动进度。**读取会临时占用与视频大小相当的内存**（构造时还会额外占用，具体以浏览器实际占用为准），**读取中可以取消，取消、失选、换源或离开节点都会中止并释放**；画布保存的原始视频地址一字不改。正常 Web（VibeDev 与普通 http 转发）不出现这个入口，播放与拖动照旧走流式范围请求。本版覆盖**视频节点、放大预览、字幕编辑器预览与裁剪条胶片条**（读取后胶片条不再是全第一帧）。
-- **仍未适配**：离屏截帧（截帧/出片）与拼接、截取、音频等编辑对话框各自持有播放器元素，在官方旧转发下仍可能无法定位进度，留待后续。
-- 0.3.4 的范围响应修复继续生效：一次范围请求按客户端要求完整返回（开放式、有限段、后缀尾段），流式且可取消。
-
-- **A "Prepare playback" entry for the official shell's old forwarding**: when the official DSH's old forwarding leaves the player with no seekable range (the progress bar cannot be dragged), a video node and its enlarged preview gain a "Prepare playback" button. One click **reads the whole video once**; after that, the play button plays it and the progress bar can be scrubbed. **The read temporarily holds memory comparable to the video's size** (assembling it takes more; the browser's actual usage decides), **it can be cancelled, and cancelling, deselecting, switching the source or leaving the node aborts and releases it**; the board's saved video address is never rewritten. Normal web (VibeDev and plain http forwarding) shows no such entry — play and seek keep using streaming range requests. This version covers the **video node, the enlarged preview, the subtitle editor's preview and the trim bar's filmstrip** (frames are no longer all the first frame once the file is read).
-- **Not adapted yet**: offscreen frame capture (frames/export) and the join, cut and audio dialogs each hold their own media element; on the old forwarding they may still be unable to seek. Follow-up.
-
-### 0.3.4 版本说明 · 0.3.4 release note
-
-- **视频读取范围修复**：媒体服务完整返回播放器所请求的单个字节区间，取消把请求主动截短到 8 MiB 的行为。原片的尾部索引因此能正常读取；响应继续从文件流式发送，客户端断开即停止，不重编码、不替换素材。桌面视频跳转还需要 VibeDev Next 的未压缩响应长度保留修复，两者配合验收。
-- **Media ranges**: the server returns the entire requested byte range rather than truncating it at 8 MiB, allowing players to reach the original file's trailing index. File streaming and cancellation remain intact; media is neither re-encoded nor replaced. Desktop seeking also requires the VibeDev Next fix that retains uncompressed response lengths.
-
-### 0.3.3 版本说明 · 0.3.3 release note
-
-- **撤回了 0.3.2 的「相关组件」入口**：上一版加在剧本、分镜画布和导演台三个标签页尾的那张卡片（插件之间的推荐位）影响页面观感，已经整个去掉；怎么引荐、在哪引荐等重新设计之后再考虑。工作区 `film/` 里的作品和 VibeDev 账号登录都不受影响，其它功能与 0.3.1 一致。
-
-- **The 相关组件 (related components) entry from 0.3.2 is withdrawn**: the card 0.3.2 added to the end of the script, storyboard and director desk tabs — a recommendation slot between plugins — hurt how the pages looked, so it is gone entirely; how and where to point people at other plugins will be considered again after a redesign. The work in your workspace's `film/` folder and your VibeDev sign-in are unaffected, and everything else matches 0.3.1.
-
-### 0.3.1 版本说明 · 0.3.1 release note
-
-- **配合改名后的「VibeDev 账号与模型」插件**（[@vibedev-si/dsh-vibedev](https://github.com/VibeDev-Si/dsh-vibedev)，原 dsh-media）：未登录时的提示改为指向侧边栏底部「登录 VibeDev」和「设置 → VibeDev 账号」（dsh-media 的设置页里并没有登录入口）；缺少插件时的提示写明新的插件名和包名；Agent 工具说明里的 dsh-media 改称 VibeDev 插件。功能没有变化：分镜画布照旧通过 `vibedevMedia` 服务生成，新旧两个插件都提供这个服务。
-
-- **For the renamed VibeDev Account & Models plugin** ([@vibedev-si/dsh-vibedev](https://github.com/VibeDev-Si/dsh-vibedev), formerly dsh-media): the signed-out hint now points to "Sign in to VibeDev" at the bottom of the sidebar and to Settings → VibeDev account (dsh-media's settings page had no sign-in); the missing-plugin hint names the new plugin and package; the agent tool descriptions call it the VibeDev plugin. Nothing else changes: the storyboard still generates through the `vibedevMedia` service, which both the old and the new plugin provide.
-
-### 0.3.0 版本说明 · 0.3.0 release note
-
-- **视频节点上直接剪**：裁剪条（入点出点、磁吸、0.1 秒微调）、在播放头切开、“剪辑”面板一次截多段或多点截帧、选中多个视频拼接（编码一致时插件无损拼接，否则在页面里重新编码）、分离音频、音频截取。生成、下载、存素材都自动用裁剪后的片段；参考视频超出所选模型的限制时，提示“截取前 N 秒 / 选择片段”，不会自动提交。
-- **字幕**：在视频节点上导入、导出和编辑 SRT（也读 WebVTT 和纯文本），自动断句，实时叠在画面上；裁剪、切开、拼接后字幕跟着对时。不做语音识别。
-- **运镜与相机**：视频节点和生成配置节点上选运镜（约 40 种，可组合、可调速度）；图片和视频节点上设相机（质感、镜头、焦距、光圈，可选景别和机位）。生成时自动写进提示词，只加一次，“查看最终提示词”能看到实际发送的内容。多角度工具加了预设和景别。
-- **提示词技能与生成预设**：自带 23 个中文影视技能（分镜画面、角色/场景/道具设定卡、产品广告镜头、首尾帧衔接、风格统一等），可以挂到节点上、用 @ 引用，或放一个技能节点连到多个生成节点；6 个生成预设，也可以把自己的设置存成预设（存在本机浏览器里）。影视工作台里不再从 GitHub 读取在线提示词库。
-- **生成面板**：参数按模型能力显示（图片的方/横/竖与像素、视频的时长、原生音频和各比例像素），生成按钮显示预估价格；预估 ≥ ¥20、模型没有报价或参考视频时长未知时先确认，批量生成按总额确认。影视工作台下每次最多 4 张图。模型按家族分组，首尾帧改为两个固定槽位，可以一键用上一镜的尾帧。
-- **素材与画布**：素材按分类和多个标签筛选；粘贴提示词时 @ 引用还原成引用标签；长文本节点可以用滚轮浏览；画布同步了上游 infinite-canvas v0.19（缩略图、拖拽和连线提速、悬停按钮），去掉了继承来的第三方品牌标志和赞助信息。
-- **Agent**：新增剪切组工具（入出点、切分、出片、拼接、分离音频、读写字幕）；生成选项工具能设运镜、相机、提示词技能、技能节点、首尾帧和预设；页面拒绝生成时，原因原样转给 Agent；“帮我写”按运镜、相机和技能来写。
-- **变化**：0.1 的旧导入地址 `/api/canvas/timelines/:boardId/import` 不再可用（返回 404）。在不收首帧的线路上，“图生视频”改走“全能参考”；带尾帧的请求直接拒绝，不扣费。
-- **来源**：部分视频、音频和素材交互改编自 tigerowo/infinite-canvas（经作者许可）；交互设计参考了 Open AI Canvas，不含其代码。详见包内 `apps/canvas/NOTICE`。
-
-- **Cut right on video nodes**: a trim bar (in/out points, snapping, 0.1 s steps), split at the playhead, the 剪辑 (cut) panel for several segments or frames at once, joining selected videos (losslessly by the plugin when the codecs match, otherwise re-encoded in the page), extracting audio and trimming audio. Generation, download and save-as-asset use the trimmed clip; a reference video over the chosen model's limit offers "trim to the first N s / pick a segment" and never submits by itself.
-- **Subtitles**: import, export and edit SRT on video nodes (WebVTT and plain text are read too), with automatic line splitting and a live overlay on the picture; cues follow trims, splits and joins. No speech recognition.
-- **Camera moves and camera settings**: pick camera moves (about 40, combinable, with speed) on video and generation-config nodes, and camera settings (look, lens, focal length, aperture, optional shot size and angle) on image and video nodes. They are added to the prompt at generation time, once; "view final prompt" shows what is sent. The multi-angle tool gains presets and shot sizes.
-- **Prompt skills and generation presets**: 23 bundled Chinese film skills (storyboard frame, character/scene/prop sheets, product ad shot, first/last frame continuity, consistent style …) can be attached to a node, mentioned with @, or put in a skill node wired to several generation nodes; six generation presets, plus your own presets saved in this browser. The workbench no longer reads the online prompt library from GitHub.
-- **Generation panel**: settings follow each model's capabilities (square/landscape/portrait with pixel sizes for images; duration, native audio and per-ratio pixels for video), and the generate button shows an estimate; an estimate of ¥20 or more, an unpriced model or a reference of unknown length asks first, and a batch asks once for its total. At most 4 images per run in the workbench. Models are grouped by family; first/last frames are two fixed slots, with one click to reuse the previous shot's last frame.
-- **Library and canvas**: filter assets by category and several tags; pasted prompts turn @ references back into reference chips; long text nodes scroll with the wheel; the canvas is synced with upstream infinite-canvas v0.19 (thumbnails, faster dragging and edges, hover buttons), and inherited third-party brand marks and sponsor notes are gone.
-- **Agent**: a new cut group (in/out marks, split, render a clip, join, extract audio, read and write subtitles); the generation-option tools set camera moves, camera settings, prompt skills, skill nodes, first/last frames and presets; when the page refuses a generation, its reason reaches the agent word for word; 帮我写 writes with the chosen camera move, camera settings and skills.
-- **Changes**: 0.1's old import path `/api/canvas/timelines/:boardId/import` is gone (404). On lanes without a first frame, image-to-video goes as 全能参考 (multi-reference); a request with a last frame is refused before anything is charged.
-- **Sources**: some video, audio and library interactions are adapted from tigerowo/infinite-canvas (with the author's permission); the interaction design also draws on Open AI Canvas, whose code is not included. See `apps/canvas/NOTICE` in the package.
-
-### 0.2.0 版本说明 · 0.2.0 release note
-
-- **剪辑台已移除**：0.2.0 起影视工作台只有剧本、分镜画布和导演台三个标签，Agent 也不再带剪辑、字幕识别和渲染的工具（常驻工具从 35 个减到 30 个），插件包从约 38 MB 缩到约 3 MB。旧会话里还开着的剪辑台标签会显示 DSH 自带的“不可用”提示，关掉即可。
-- **你的文件都还在**：插件不删也不改 0.1 留下的 `film/canvas/timeline.json`（剪辑和撤销历史）和 `film/canvas/renders/`（导出的成片）；旧成片照旧出现在分镜画布的素材库里，`film/.tasks/` 里旧的识别和渲染任务也照旧能读（显示为已中断或已结束）。
-- **模型缓存可以手动删**：0.1 剪辑台同意后下载的模型和渲染器在 `$DSH_HOME/cache/dsh-film/video-editor-models/`（可能有几百 MB）。插件不会自己删它；不再需要时可以手动删掉这个文件夹。
-- **旧设置不影响加载**：插件设置里 0.1 的 `modelsDir` 和 `ffmpegPath` 两项不再使用，留在配置里也能正常加载。
-
-- **The editing desk is gone**: from 0.2.0 the workbench has three tabs (script, storyboard, director desk), the agent no longer carries the cut, recognition and render tools (30 core tools instead of 35), and the package shrinks from about 38 MB to about 3 MB. An editing-desk tab still open from an older session shows DSH's own "unavailable" placeholder; close it.
-- **Your files stay**: the plugin neither deletes nor changes `film/canvas/timeline.json` (0.1's cut and its undo history) or `film/canvas/renders/` (its exported films); old renders still appear in the storyboard's library, and old recognition and render tasks in `film/.tasks/` still read (as interrupted or finished).
-- **The model cache can be deleted by hand**: the models and the renderer 0.1's editing desk downloaded with your consent are in `$DSH_HOME/cache/dsh-film/video-editor-models/` (possibly hundreds of MB). The plugin never deletes it; remove the folder yourself when you no longer need it.
-- **Old settings still load**: 0.1's `modelsDir` and `ffmpegPath` settings are no longer used, and a profile that still holds them loads normally.
-
-## 文件 · Files
-
-```
-<workspace>/
-  film/film.json             项目信息：片名、画幅（format vibedev.film, version 1）
-  film/story/<id>.md         剧本：正文是 Markdown，场次、镜头、人物等记在隐藏的结构标记里
-  film/canvas/document.json  分镜画布
-  film/canvas/media/         生成、导入的素材
-  film/canvas/models/        从工作区导入的模型（GLB、FBX、OBJ）
-  film/canvas/imports.json   从工作区导入过的文件（没改过的不再列为可导入）
-  media/                     VibeDev 插件（dsh-vibedev）生成的素材；和工作区里其他素材一样，用到时放进 film/
-```
-
-一个工作区放一部片。已有的 `film/film.json` 不会被覆盖；建影片时已有的画布（哪怕读不出来）不会被覆盖，工作区里原有的画布会沿用它的 id。删除画布留下的记录只挡住被删的那块画布：删掉影片后再建的新片有新 id，照常带上自己的空白画布。工作区在隐藏文件夹（名字以 `.` 开头）或 `.ssh`、`.aws` 等凭据文件夹里时不建片，也不播放、不导入那里的素材。
-
-工作区里 `film/` 以外的图片、视频和音频都算素材：分镜画布的素材库会列出它们。隐藏的文件和文件夹、`node_modules`、构建输出和缓存之类的生成目录、`.ssh` 等凭据目录和链接不列；文件太多时只读一部分（最多 2000 个素材、12 层目录），并标明列表不完整。用到时插件把文件复制进 `film/canvas/media/`（文件系统支持时用写时复制的克隆，不占额外空间；从不硬链接，所以之后在别处改了原文件，片里的那份不跟着变），同样的字节只放一份；导入过、之后没改过的文件不再出现在分镜画布的可导入列表里。
-
-Media anywhere in the workspace outside `film/` is material: the storyboard's library shows it (hidden entries, `node_modules`, build and cache folders, credential folders and links are skipped; a very large workspace is listed in part, and the list says so). A file is copied into `film/canvas/media/` when used (as a copy-on-write clone where the file system supports it; never a hard link, so editing the original elsewhere later leaves the film's copy as it was), the same bytes only once; an imported file that has not changed since is no longer offered for import by the storyboard. A workspace inside a hidden folder (a name starting with `.`) or a credential folder such as `.ssh` gets no film, and its media is neither played nor imported.
-
-## 共享资产 · Shared assets
-
-画布左侧的共享素材库按当前电脑用户保存，默认目录是 `~/.vibedev/film/assets/`，与项目工作区分开。首次打开会建立角色、场景、物品、风格、音效和未分类；支持子文件夹、搜索、预览、改名、移动、标签、下载及回收站恢复。配置 `sharedAssetsDir` 可指定另一个绝对目录。已有项目素材不会自动迁移，可从“本项目素材”显式存入共享库。
-
-保存素材会复制原文件；从共享库加入画布会再复制进当前项目的 `film/canvas/media/`。因此原项目移动后共享素材仍可用，当前项目的画布也不依赖共享库的地址。将文件夹添加到画布会完整导入其素材与子文件夹素材，再一次创建一个组；删除共享素材只移入回收站，不删除已加入项目的副本。不扫描其他项目或整个磁盘。
-
-The per-user library defaults to `~/.vibedev/film/assets/`, independently of the workspace; `sharedAssetsDir` can override it with an absolute directory. Save explicitly copies selected originals, and insertion copies media into the current film before creating nodes. Folder insertion creates one group only after the full import succeeds. Existing project materials remain available; removal moves a shared asset to trash without changing project copies.
-
-## 视频提示词节奏 · Video prompt pacing
-
-“VibeDev 写”和内置编剧技能要求每个视频片段从局部 **0 秒** 开始，连续覆盖当前节点的实际时长。全片起止仅用于剪辑定位：第二段位于全片 31–60 秒时，30 秒片段仍写 0–30 秒的动作时间线，不能把 31–35 秒等全片标签传给模型。叙事一般按约 2–3 秒安排一个主要动作或有目的的切镜，保持人物微动作、自然表情、空间和视线连续；明确长镜头、必要对白、非叙事或原剪辑要求优先。建议不更改模型能力、时长、费用或正式生成流程。
-
-Every clip uses a local clock from 0 to its selected node duration; global screenplay times remain editing metadata. Narrative beats around 2–3 seconds guide motivated cuts and natural performances while preserving explicit long takes, necessary dialogue and existing edits. These are writing instructions, not changes to model limits or generation charges.
-
-## 运镜与相机 · Camera moves and camera settings
-
-本地画布更新中，3D 全景节点的“VibeDev 写”会明确告诉编写端，这是 360°、2:1、左右无缝的等距柱状全景场景，沿用参考与草稿。普通图片和视频不带全景用途；仍需用户确认提示词并发起生成，模型实际效果取决于其能力。
-
-分镜画布的视频节点（和视频模式的生成配置节点）可以选**运镜**：推、拉、摇、移、跟、升降、环绕、手持、变焦、航拍等 42 种，最多 3 个，第一个是主运镜，按先后或同时进行，能调速度的可以选快慢。图片、视频和生成配置节点可以设**相机**：质感、镜头、焦距、光圈，可选景别和机位（全景图没有）。它们是节点上的设置，不写进你的提示词：生成时画布在提示词末尾各加一行（先运镜，后相机；提示词里已经有同样的一行就不再加），结果节点记下加了哪些行，“查看最终提示词”能看到实际发出的全文。“帮我写”会被告知这两行已经另外定好，不再自己描述镜头运动和摄影器材。
-
-这只是写进提示词的引导：效果取决于模型，不保证每次都拍成那样，标为“尽力而为”的运镜（如滑动变焦、FPV 俯冲、子弹时间）对现在的模型更难。加上这两行后提示词超过 4000 字时不会生成，要精简提示词或去掉部分设置（你自己写的长提示词照常发送）。
-
-Agent 也能用：`canvas_generation_options` 列出可选的运镜和相机参数，`canvas_set_generation_options` 给节点设置或清除（清除存为 `null`），`canvas_create_generation_flow` 建流程时也能直接带上；分镜标签开着、关着都行。Agent 发起的生成若无论页面怎样设置都会因为加上的行和提示词技能超过 4000 字，工具直接报错（`CANVAS_PROMPT_OVER_LIMIT`）；其余情况由页面在开始前自己检查，不生成时整批拒绝，原因原样转给 Agent（`CANVAS_BOARD_REFUSED`），不会悄悄不生成。可选项读自分镜画布自带的目录（`apps/canvas/catalog/`），和页面里的一致。
-
-Video nodes on the storyboard (and generation nodes in video mode) take a **camera move**: 42 moves — push, pull, pan, truck, follow, crane, orbit, handheld, zoom, aerial and more — up to three, the first being the main move, one after another or together, with a speed where a move has one. Image, video and generation nodes take **camera settings**: look, lens, focal length, aperture, and optionally shot size and angle (not panoramas). Both are node settings, never written into your prompt: when the node generates, the storyboard appends one line for each (the move, then the camera; a line already in the prompt is not added again), the result records which lines were added, and "view final prompt" shows the whole text sent. The prompt writer is told both lines are chosen separately, so it describes neither the camera's movement nor its equipment.
-
-They only guide the model through the prompt: the effect depends on the model and is not guaranteed, and moves marked best-effort (dolly zoom, FPV dive, bullet time and the like) are harder for current models. A prompt that the two lines push past 4000 characters is not generated; shorten it or drop a setting (a prompt you wrote longer than that yourself is sent as it is).
-
-The agent can do the same: `canvas_generation_options` lists the moves and camera choices, `canvas_set_generation_options` sets or clears them on nodes (a cleared setting is stored as `null`), and `canvas_create_generation_flow` takes them when it builds a flow, with the storyboard tab open or closed. An agent-started generation that the added lines and prompt skills would push past 4000 characters however the page is set up is refused by the tool (`CANVAS_PROMPT_OVER_LIMIT`); otherwise the page checks the runs itself before it starts them and refuses the whole batch with its own reason, passed on word for word (`CANVAS_BOARD_REFUSED`), instead of silently not generating. The choices come from the storyboard build's own catalogues (`apps/canvas/catalog/`), so they match the page.
-
-## 提示词技能与生成预设 · Prompt skills and generation presets
-
-分镜画布自带 23 个**提示词技能**（VibeDev 自写的中文提示词模板）：分镜画面描述、角色 / 场景 / 道具设定卡、多角度三视图、表情/表演参考、短剧情绪特写、产品广告镜头、首尾帧衔接、下一镜推演、风格统一、运镜描述增强、光影氛围、视频时序脚本、对白镜头、建立镜头、动作戏节拍、分镜预演图、换装/状态变体、短剧封面海报、参考身份锁定、环境声设计和剧本拆镜表。图片、视频和生成配置节点（以及空的文本节点）可以挂技能：每个节点最多一个包裹技能（把你的提示词放进它的结构）和两个追加技能（在后面加几行）。技能和运镜、相机一样只存在节点设置里，挂上时冻结一份快照（连同变量），发送时才按技能的结构组合进提示词，不改动你写的文字：运镜句和相机句填进技能留的位置，各技能的避免词合成一行“避免：……”，只在技能适用的生成模式下套用，每个技能只套一次，重试也不会再套一遍。**技能节点**把一个技能套到它连着的每个图片、视频和生成配置节点上（节点自己的包裹技能优先）。“帮我写”会按节点上技能的结构写，写好后这些技能发送时不再重复套用。
-
-**生成预设**一键套用模型、比例、分辨率、时长、原生音频、张数和技能：内置竖屏短剧、横屏预告、低价试镜、角色设定卡、分镜静帧、竖版剧照 6 个，按当前模型调整过的地方会提示；当前设置也可以存为自己的预设（只存在这个浏览器里）。
-
-Agent 也能用：`canvas_generation_options` 用 `skills` 列出技能（模板、变量、适用模式），用 `presets` 列出内置预设；`canvas_set_generation_options` 用 `skills` 给节点挂技能（必填变量要给，`clear: ["skills"]` 去掉节点自己的技能，两者同给就是替换），`as: "node"` 则加一个技能节点并连到这些节点（已有同一技能、同样变量的技能节点就直接连上它）；`preset` 套用预设，连同其中的技能；`frameRoles` 按图片节点指定视频节点的首帧和尾帧（只在图生视频、首尾帧模式下起作用）。`canvas_create_generation_flow` 建流程时也能直接带上这些，分镜标签开着、关着都行。预设里的模型（以及建流程时给的 `model`）按目录 id 写进节点（如 `seedance-2-0-official-mini`），生成时页面按提供这个模型的通道来用：先用 VibeDev 网关的通道，没有就用第一个提供它的通道；哪个通道都不提供时显示未配置，要用户自己选模型。提示词技能是 VibeDev 的提示词模板，不是 Agent 的技能（如下文的编剧技能 `film-screenwriting`）。
-
-The storyboard ships 23 **prompt skills**, VibeDev's own Chinese prompt templates: storyboard frame, character, location and prop sheets, turnaround views, expression and performance sheet, short-drama emotion close-up, product ad shot, first-to-last frame bridge, next shot, style lock, camera move detailing, lighting and mood, timed video prompt, dialogue shot, establishing shot, action beat, storyboard grid, costume and state variant, short-drama cover poster, identity lock, sound bed and script to shot list. Image, video and generation nodes (and an empty text node) take up to one wrap skill (your prompt goes into its structure) and two append skills (lines added after it). Like camera moves and camera settings they are node settings, frozen as a snapshot (variables included) when attached and composed into the prompt only when it is sent, without changing what you wrote: the camera move and camera sentences fill the slots a skill leaves for them, the skills' avoid terms merge into one "避免：" line, a skill applies only in the modes it names, once, and a retry never applies it again. A **skill node** applies one skill to every image, video and generation node it is wired into (a node's own wrap skill wins). The prompt writer writes in the structure of a node's skills, which are then not composed in again when it is sent.
-
-**Generation presets** apply a model, ratio, resolution, duration, native audio, image count and skills in one click: six built-ins (vertical short drama, landscape trailer, low-cost preview, character card, storyboard still, vertical still), with a notice where they were fitted to the current model; you can save the current settings as your own preset (kept in this browser only).
-
-The agent can do the same: `canvas_generation_options` lists the skills (`skills`: templates, variables, modes) and the presets (`presets`); `canvas_set_generation_options` attaches skills to nodes (`skills`, with their required variables; `clear: ["skills"]` removes a node's own skills, and both together replace them) or adds a skill node wired into them (`as: "node"`; an existing skill node with the same skill and values is wired instead), applies a preset with its skills (`preset`), and names a video node's first and last frame images (`frameRoles`, which apply only in image-to-video and first-last-frame mode); `canvas_create_generation_flow` takes them when it builds a flow, with the storyboard tab open or closed. A preset's model (and a flow's `model`) goes on the node as its catalogue id (such as `seedance-2-0-official-mini`); when the node generates, the page uses the channel serving that model — the VibeDev gateway's first, else the first channel that serves it — and a model no configured channel serves shows as not configured until the person picks one. Prompt skills are VibeDev prompt templates, not agent skills such as the screenwriting skill `film-screenwriting` below.
-
-## 剪切、拼接与分离音频 · Cut, join and extract audio
-
-分镜画布上的视频可以剪切（定入点、出点）、拼接（把几段接成一段）和分离音频（把声音单独存成音频）。结果都是画布上的新节点，在来源右边，并有连线指回来源；原节点和原文件不动。结果文件放在 `film/canvas/media/`：剪切是 `clip-<id>.mp4`（音频文件剪切后保持原格式），拼接是 `join-<id>.mp4`，分离音频是 `extract-<id>.m4a`。撤销或删掉节点后，已经生成的文件留在磁盘上，和片里其他文件一样。
-
-这些操作由插件在 DSH 里直接完成，**不重新编码**：只复制原来的编码数据，所以不损画质、几乎不花时间，不需要 ffmpeg，分镜标签关着也能做，并作为影片任务运行，可以看进度、可以取消（取消后不留半个文件）。剪切默认从入点前最近的关键帧开始复制，并在 MP4 里写明从入点开始播放；个别不认这种标记的播放器会在开头多显示不到一个关键帧间隔的画面。选“从关键帧开始”（`shrink`）时从关键帧开始剪：入点正落在某个关键帧那一帧画面上，就从这个关键帧开始（最多早一帧），否则挪到其后第一个关键帧；画面和声音都从那里开始，没有要隐藏的部分，文件里不会带着剪掉的画面（生成参考这类要求精确的用途就这样剪）。结果节点的 `derivedFrom` 记下每个来源实际用到的区间和它在结果里的起点（出点可能比请求的多出最后一帧），字幕和导演提示按它换算。
-
-只有能直接复制的才这样做。拼接要求每一段和第一段的编码、尺寸和编码参数相同，声音格式相同，都有或都没有声音，第二段起的入点落在关键帧上（剪切结果开头藏起来的预滚不算），并且除最后一段外，每段的声音不比画面短一帧以上；同一个模型、同一个分辨率生成的镜头通常满足。拼接时声音首尾相接，接缝处与画面相差不超过半帧。不满足时插件会说明是哪一段、什么原因，由分镜页在浏览器里重新编码（以第一段的尺寸和帧率为准，无声的段补静音）——重新编码需要分镜标签开着，声音用浏览器自带的 AAC 编码器（浏览器不支持时页面会说明，不生成文件）。
-
-Agent 也能做这些（见下文的剪切组）：`video_clip` 定入点出点，`video_split` 在某一时刻切成两个节点，`video_render_clip` 把入出点出片成文件，`video_join` 按给定顺序拼接，`video_extract_audio` 分离音频，分镜标签开着、关着都能用。入出点和切分是画板编辑：分镜页开着时交给页面执行（可撤销），关着时写进保存的画布。出片、拼接和分离音频由插件作为影片任务完成，结果落在来源右边并连线，和在页面里做的一样带上来源的内容：出片带来源的提示词、这一段换算后的字幕（连同字幕样式，并按新文件记下媒体键，不会被标成“字幕可能和视频不匹配”）和导演镜头；拼接带各段换算后的字幕（同样带样式和新文件的媒体键）和导演镜头，不带提示词；分离音频什么都不带。Agent 用 `media_get_task` 看结果。需要重新编码的拼接（`VIDEO_JOIN_NEEDS_PAGE`）只能由用户在分镜页里用“拼接”完成。Agent 还能用 `video_get_subtitles` 和 `video_set_subtitles` 读写视频节点的字幕（见下文的剪切组）。
-
-Videos on the storyboard can be cut (in and out points), joined (several clips into one) and have their sound extracted into an audio file. Each result is a new node right of its source with an edge back to it; the source node and file are untouched. Results go to `film/canvas/media/` as `clip-<id>.mp4` (an audio file keeps its format), `join-<id>.mp4` and `extract-<id>.m4a`; undoing or deleting the node leaves the file on disk like any other film file.
-
-The plugin does these in DSH itself **without re-encoding**: it copies the encoded data (mediabunny), so there is no quality loss, it takes moments, needs no ffmpeg and works with the storyboard tab closed. Each runs as a film task with progress and cancel (a cancelled edit leaves no partial file). A cut copies from the key frame before the in point and marks the MP4 to start playing at the in point; a player that ignores the mark shows up to one key-frame interval more at the start. The `shrink` boundary starts on a key frame instead — the one whose picture shows at the in point (at most a frame earlier), else the next one — so picture and sound both start there with nothing hidden and nothing cut away left in the file (the exact cut a generation reference needs). A result's `derivedFrom` records the range of each source it really holds and where that starts in the result (the out point may run one frame past the one asked for), for remapping subtitles and director cues.
-
-Only what can be copied is done this way. A join needs every clip to match the first in codec, size and encoder parameters and in sound format, all with or all without sound, every clip after the first to start on a key frame (not the hidden pre-roll at the start of a cut), and every clip but the last to have sound no more than a frame shorter than its picture — shots from one model at one resolution usually do. The joined sound runs back to back, within half a frame of the picture at every cut. Otherwise the plugin names the clip and the reason, and the storyboard page re-encodes in the browser (to the first clip's size and frame rate, silent clips padded with silence), which needs the storyboard tab open and the browser's own AAC encoder for the sound (without one the page says so and makes no file).
-
-The agent can do the same with the cutting group (see below): `video_clip` sets in and out points, `video_split` cuts a node in two at one time, `video_render_clip` renders a mark into its own file, `video_join` joins in the given order and `video_extract_audio` copies the sound out, with the storyboard tab open or closed. Marks and splits are board edits, run by the open page (undoable) or saved to the board; renders, joins and sound copies run as film tasks that land their result right of the source with an edge back, carrying what the page's own edits carry — a render the source's prompt and the remapped subtitles (with their style, keyed to the new file so they are not flagged as mismatched) and director shots of its range; a join every clip's remapped subtitles and director shots, but no prompt; a sound copy nothing — and the agent reads them with `media_get_task`. A join that needs re-encoding (`VIDEO_JOIN_NEEDS_PAGE`) is left to the person, with 拼接 in the storyboard page. The agent also reads and writes a video node's subtitles with `video_get_subtitles` and `video_set_subtitles`.
-
-## Agent 的影视工具 · Agent tools
-
-每个会话都有 `film_project`：查看工作区的影片项目，在用户要做片时新建一个（用户打开影视标签时也会自动建好），或改片名和画幅（`update`）。工作区有影片项目的会话还会常驻 32 个工具、`film_tools` 和一段说明（没有影片的会话不带它们；新建项目后从下一步起就有）。导演台、建模和剪切三组工具按需加载：画板上有导演台节点时自动带上导演组，有带文件的视频节点时自动带上剪切组，其余由 Agent 用 `film_tools` 开启，不用时不占 token。
-
-- **剧本** `story_query` `story_asset_bindings` `story_create` `story_apply_ops` `story_history` `story_checkpoint` `story_restore` `story_revert`：和剧本标签用同一套接口，按保存的版本号写入（先 dryRun 预览），每次写入都有版本和操作记录，可以单独撤回某次操作。`story_asset_bindings` 给人物、地点、道具和镜头绑定参考图（只认选中的那份字节，五种解析结果分开报告），工作区里 `film/` 以外的图片先放进影片再绑定。
-- **导入导出** `story_import` `story_export`：先预览再导入为新副本（从不覆盖）；导出完整 Markdown、仅正文，或连同参考图打成素材包存到 `film/story-exports/`。
-- **剧本到分镜** `story_source` `story_handoff` `story_adopt` `story_impact` `story_director_links`：把保存的人物、场景、道具、场次或镜头读成制作素材，送到画布成为独立的剧本来源卡（可同时准备一个连好线、只待确认提示词的图片节点，不会自动生成）；按节点保存的字段显式采用描述或参考图（参考图另存一份字节快照）；剧本改动后查看影响了哪些采用、产物和导演镜头；给导演台已保存的机位记下剧本来源。分镜标签不开也能用。
-- **分镜画布** `canvas_list_clients` `canvas_get_state` `canvas_get_selection` `canvas_read_node` `canvas_get_generation_status` `canvas_get_document` `canvas_create_text_nodes` `canvas_create_generation_flow` `canvas_generation_options` `canvas_set_generation_options` `canvas_run_generation` `canvas_connect_nodes` `canvas_delete_nodes` `canvas_apply_ops` `canvas_attach_media`：分镜标签开着时，改动交给页面执行，用户看着它出现，也能撤销；没开时，改动写进保存的画布，下次打开就在。运行生成要分镜页开着。`canvas_attach_media` 把已经生成好的文件（如 VibeDev 插件存在 `media/` 的图片，或工作区里别处的图片、视频、音频）放进指定节点，不重复生成。`canvas_generation_options` 和 `canvas_set_generation_options` 列出、设置或清除节点的运镜、相机、提示词技能（含技能节点）、首尾帧和预设（见上文“运镜与相机”“提示词技能与生成预设”），只改节点设置，不发起生成。`canvas_get_generation_status` 还带上页面记在节点上的原因（`error`）：批量或 Agent 发起的生成在发出请求前被拒（如参考视频超限、提示词超长），或生成配置节点的输出全部失败；`canvas_get_document` 的节点摘要带上运镜、相机、技能、首尾帧和技能节点的技能。
-- **影片任务** `media_get_task` `media_cancel_task`：读取或取消分镜画布的生成任务（`canvas_get_generation_status` 在 `outputs[].task` 里给出的任务号），以及剪切组发起的出片、拼接和分离音频（完成后 `file.landedNodeId` 是落到画板上的新节点，`file.derivedFrom` 列出各来源实际用到的区间；取消的剪切不留半个文件）。
-- **导演组（按需）** `director_query` `director_models` `director_stage` `director_render` `director_render_status` `director_render_cancel` `director_inspect_model` `director_review` `director_compile_motion` `director_modeling_brief`：读导演台场景（结构、采样、事件、诊断、动作），列出能用的模型文件和尺寸，按指纹分步调度（先 dryRun；`place_model` 按真实尺寸放入模型，见下文“导演台里的模型”），编译动作，管理审阅版本（审阅版只能交给画布生成）。查询和调度在导演标签关着时作用于保存的节点，开着时作用于桌面上的实时场景；渲染、检视模型和审阅版本要导演标签开着。后台无头渲染暂未接入。
-- **建模组（按需）** `space_plan_compile` `model_brief` `model_review` `model_adopt` `model_status` `model_report` `model_cancel`：按毫米写平面，编译成 `film/spaces/` 下导演台能打开的 GLB（先 dryRun 看尺寸、警告和楼梯可达性）；为程序化模型准备建模任务，读 `film/models/<id>/model.json` 里的记录、写审阅、记录用户采用的版本。运行模型、拍检查图、导出和回读 GLB 需要无头浏览器，暂未接入。
-- **剪切组（按需）** `video_clip` `video_split` `video_render_clip` `video_join` `video_extract_audio` `video_get_subtitles` `video_set_subtitles`：给视频（和音频）节点定入点出点（只是标记，不动文件；清除时存为 `null`），在某一时刻切成两个节点（后段是同一文件的新节点，连线指回原节点，字幕和导演镜头留在各自的部分），把入出点出片成文件，按给定顺序无损拼接（结果标为成片，`workflowKind: final`），分离音频，并读写视频节点的字幕。出片、拼接和分离音频作为影片任务运行，结果落在来源右边并连线。`video_get_subtitles` 分页读出字幕（JSON 或 SRT；时间按整个文件计，`timeBase: clip` 时从入点算起）和样式，视频换过（地址不同、大小不同，或时长差超过 250 毫秒）时标出 `mediaChanged`；`video_set_subtitles` 用 SRT/WebVTT 文本或字幕条列表替换读出时那一视图里的字幕：默认替换全部；`timeBase: clip` 时只替换入出点之内的字幕（入出点外的保留，跨过入出点边缘的字幕按读出的样子写回时，边缘外的部分也保留）；带上那次读取的 `offset`/`limit` 和 `contentDigest` 时只替换那一页。新列表少了这部分里的字幕（没有同 id、时间上也不重叠的字幕）就拒绝并列出它们（`CANVAS_SUBTITLE_WOULD_REMOVE`），确实要删时再带 `replaceAll: true`——只读一部分再写回，不会删掉没读到的字幕；结果里有现存条数、保留未动的条数（`kept`）、删掉的条数（`removed`）和没能用上的条数（`dropped`）。写入的字幕按分镜画布导入的规则整理（排序、结束晚于开始、每条最多 2000 字、最多 5000 条，长句按标点自动断句）；也可以只改样式，或清除（存为 `null`）；保存时按节点当前的视频记下媒体键，和在分镜画布里保存的一样。`video_clip`、`video_split`、`video_render_clip`、`video_extract_audio` 和 `video_set_subtitles` 要带节点当前的 `content`（`expectedContent`），节点期间换了文件或正在生成就拒绝（`video_join` 和 `video_get_subtitles` 不用带）；改读出来的字幕时再带上 `contentDigest`，字幕期间被改过就拒绝，不会覆盖；出片、拼接和分离音频还要带 Agent 自己的 `requestId`，重复提交只返回同一个任务（同一个 id 换了文件、区间或边界会被拒绝，新的剪辑要用新的 id）。只做剪切和拼接，不做转场、配乐或特效，字幕只显示在画面上、不写进视频文件，也不会发起生成、不花额度。
-
-工具名和参数沿用 VibeDev Studio 的影视工具；工作区就是项目，所以不再需要 `project` 参数。
-
-Every conversation has `film_project` (read or start the workspace's film — opening a film tab also starts it — or rename it and change its frame with `update`). Conversations in a film workspace also carry 32 screenplay, storyboard and film-task tools (among them `canvas_generation_options` and `canvas_set_generation_options` for the camera moves, camera settings, prompt skills, first and last frames and presets of storyboard nodes), `film_tools` and guidance; the director desk's, the modeling and the cutting tools (`video_clip`, `video_split`, `video_render_clip`, `video_join`, `video_extract_audio`, and `video_get_subtitles` / `video_set_subtitles`, which read and write a video node's subtitles — cues in the time of its whole file, SubRip or WebVTT in, paged JSON or SubRip out, saved by the storyboard's own rules and flagged by `mediaChanged` when the video was replaced; a list written back replaces only the cues of the view it was read in — the mark's with `timeBase: clip`, one page with that read's `offset`/`limit` — and a write that would drop cues of that view is refused unless `replaceAll` says so, so reading part of a list never deletes the rest) are groups taken on when needed (the director group starts enabled when the board has a director node, the cutting group when it has a video with a file). All of them go through the same API as the workbench's pages. With the storyboard open, board edits run in the page (live and undoable); with it closed they are saved to the board, and running a generation needs the page.
-
-### 编剧技能 · Screenwriting skill
-
-插件随包带一个技能 `film-screenwriting`（编剧，`skills/film-screenwriting/`），通过 DSH 的技能服务登记，每个会话的技能目录里都有它，也可以用 `/film-screenwriting` 直接调用。它写给上面的 `story_*` 工具：怎样找到和保存剧本（先预览再保存、冲突时重读）、场景/动作/对白的写法和自检、竖屏短剧与单集、剧本诊断（证据、严重程度、哪些不算套路），以及交给分镜。操作示例都经过测试，能直接用。没有技能服务的配置照常加载插件。
-
-The plugin ships the `film-screenwriting` skill (`skills/film-screenwriting/`), registered with DSH's skill registry: listed in every conversation's skill catalog and invocable as `/film-screenwriting`. It covers finding and saving screenplays with the `story_*` tools, scene, action and dialogue craft with self-checks, short-form and episodes, evidence-based diagnosis, and handoff to the storyboard; its example batches are tested against the screenplay contracts.
-
-## 导演台里的模型 · Models in the director desk
-
-工作区里（`film/` 以外）和 `film/` 下的 GLB、FBX、OBJ 文件都会出现在导演台的空间库里，并标出尺寸。点一下工作区里的文件，会先把它复制到 `film/canvas/models/`（同样的字节再点只用已有的那份，工作区里的原文件之后再改也不影响影片里的副本），再按真实尺寸放进场景：GLB 按米，FBX 按文件自己声明的单位（UnitScaleFactor），OBJ 不带单位，按导入面板里选的单位（面板会按尺寸给一个建议，可以改）。`.gltf` 的 `.bin` 和贴图是单独的文件，不能这样导入，请先转成 GLB。`film/motions/` 下编译出来的动作片段不算模型，不会列出。
-
-Agent 这边：`director_models` 列出影片和工作区里的模型，带格式、用途（`film/spaces/` 下的是场景空间）、能否放置、建议的类型、包围盒和已知单位时的米制尺寸；`director_stage` 的 `place_model` 按真实尺寸放入一个模型——它替 Agent 算好 SHA-256、量好尺寸、写好校准，dryRun 不复制文件，应用时才复制到 `film/canvas/models/`。单位依次取 `metresPerUnit`、`size`（例如 `{ height: 1.8 }`，按量出的包围盒换算）和文件自带的单位；OBJ 两者都没给时拒绝，并报出原始尺寸。带骨架的人物不经 `place_model`，要在导演标签的空间库里导入（导演台要检查骨架）。
-
-GLB, FBX and OBJ files in the workspace (outside `film/`) and in `film/` appear in the director desk's 空间库 with their size. Clicking a workspace file copies it into `film/canvas/models/` (the same bytes again reuse that copy, and later edits to the workspace file leave the film's copy alone) and places it at real size: a GLB in metres, an FBX by the unit the file declares (UnitScaleFactor), an OBJ — which carries no unit — by the unit chosen in the import panel (it suggests one from the size; you can change it). A `.gltf` keeps its `.bin` and textures in separate files and cannot be imported this way: convert it to GLB first. Compiled motion clips under `film/motions/` are not models and are not listed. For the agent, `director_models` lists the film's and the workspace's models with format, role (`film/spaces/` holds sets), whether they can be placed, a suggested kind, the bounding box and, with known units, the size in metres; `director_stage`'s `place_model` op places one at real size, hashing, measuring and calibrating it for the agent. A dry run copies nothing; the apply copies a workspace file into `film/canvas/models/`. Units come from `metresPerUnit`, else `size` (for example `{ height: 1.8 }`, against the measured box), else the file's own; an OBJ with neither is refused with its raw size. Rigged characters are imported in the director tab's 空间库, not with `place_model`.
-
-## 开发 · Development
-
-```bash
+```powershell
 npm install
-npm run typecheck
-npm test
-npm run build      # 先删掉 lib/ 和 client/，再构建 lib/（Host 一侧）和 client/（浏览器一侧）
+node scripts/assemble-app.mjs <已构建的 ToonFlow 目录>   # ToonFlow 里先执行 bun run build && bun run build:nodes
+npm run typecheck; npm test
+npm pack                                               # dsh-film-<版本>.tgz
+node scripts/verify-package.mjs dsh-film-<版本>.tgz      # 用打好的包启动一次，确认能起来、页面有门禁
 ```
 
-从源码只能构建 `lib/` 和 `client/`。`apps/` 里的原版前端不在 git 里，要从相邻的两个检出另行构建：
+发布：给 `v<版本>` 打标签，建 GitHub Release 并附上同版本的 `dsh-film-<版本>.tgz`，工作流用 OIDC 发到 npm（`.github/workflows/publish.yml`）。原型阶段的内部记录在 `docs/`。
 
-| 检出 | 分支 | 说明 |
-| --- | --- | --- |
-| `../canvas` | `feat/dsh-host` | vibedev-canvas，分镜画布；**私有仓库** |
-| `../director-desk` | `feat/dsh-procedural-mannequin` | vibedev-director-desk，导演台；**私有仓库**；画布的构建会一起构建它 |
+---
 
-`node scripts/build-apps.mjs canvas`（`npm run build:apps`）构建它们并复制到 `apps/canvas`。画布和导演台的仓库是私有的，所以只有维护者能重新构建 `apps/`；其他人要完整的插件请安装发布的包。脚本只替换它构建的 `apps/canvas`：从 0.1 升上来的检出要手动删掉旧的 `apps/` 下其他文件夹，否则打包检查会拒绝。
+## English
 
-构建 `apps/` 时，脚本先删掉 `scripts/app-excludes.mjs` 列出的文件（导演台的实验页、冒烟测试页和基准图片，以及 dsh-film 不打开的模型运行页和它的 three.js 工具链，约 10 MB；留下的文件若还引用其中某个就停下），再把来源仓库的许可证和 `THIRD-PARTY-NOTICES.txt` 写进应用目录：后者列出应用打包可能含有的全部 npm 生产依赖（按 lockfile 里不带 `"dev": true` 的条目走完整闭包），每个都有版本、许可证、仓库和 node_modules 里 LICENSE/LICENCE/COPYING/NOTICE 的全文，没有许可证文件的会写明。只重写许可证和声明、不重建前端：`node scripts/build-apps.mjs notices canvas`（`npm run build:notices`），要在构建这些前端的检出上运行（只读它们的 lockfile 和 node_modules，不连网）；检出的 HEAD 与应用里 `component-build.json` 记录的提交不同时会警告。只删多余文件：`node scripts/build-apps.mjs trim canvas`。
+**dsh-film** opens a canvas film workbench in the right sidebar of DeepSeek Harness and VibeDev: novel breakdown, script, storyboard canvas, image / video / audio generation, director desk and editing. Every model and charge goes through the VibeDev account (`@vibedev-si/dsh-vibedev`); no model API keys are needed.
 
-浏览器端按 DSH 的模块加载格式打包：`client/client.js` 每次启动加载，只登记三个标签；工作台本体在 `client/client.workbench.js`，第一次打开标签时才加载。`scripts/check-client.mjs` 会检查打包结果（文件清单、加载器首行、只引用宿主提供的模块）。
+**0.5.0** replaces the earlier workbench (0.4.0 and before) with the ToonFlow-based canvas. Update it from the VibeDev Plugin Center; the profile entry stays `dsh-film`. Projects of the old workbench are kept, not converted. Windows x64 only (the plugin ships its own Bun runtime). Image and video generation need the account plugin 0.2.7 or later; audio (music, podcasts, speech) needs 0.3.1 or later.
 
-**发布**：`npm pack` 和 `npm publish` 先跑 `prepack`——`npm run build`，再用 `scripts/check-package.mjs` 检查 `apps/canvas/index.html` 和下文列出的许可证、声明文件都在（导演台带了 glTF 解码器时还要有 `apps/canvas/director-desk/licenses/Apache-2.0.txt`），画布的四个目录（运镜、相机、提示词技能、生成预设）都通过 Agent 工具读取时的同一套检查，画布构建里没有 FFmpeg AAC 编码器（`aac-encoder` 分块或 `licenses/FFmpeg-LGPL-2.1.txt`；这一版不带它，页面重新编码声音用浏览器自带的 AAC 编码器），`apps/` 下除了 `canvas` 没有别的东西、顶层没有 `vendor/` 和 `models/`，该删的多余文件已删，`lib/` 里没有对不上源码的过期文件，`lib/` 和 `client/` 里没有构建机器的绝对路径，缺一样就拒绝打包（没有 `apps/` 的包能装上，但画布和导演台两个标签是空的）。`publishConfig` 把发布固定到 npm 官方源，镜像源不接受发布。同一个 `dsh-film-<版本>.tgz` 附到 GitHub Release `v<版本>`。
+**Cost beside the send button**: the image, video and audio nodes show the expected cost to the left of the send button, with how it is reached on hover. Images per image (by size bucket when one has its own price); video per generation, or per second × the chosen duration at the chosen resolution (`约`, plus `起` when reference videos add their length); music and podcasts per generation; speech per second of original audio (playback and billed lengths are shown apart once it ran). A model the catalog gives no price is shown as "未定价" (not priced), never as free. Prices are the account's selling prices; the VibeDev receipt is the charge, and failed tasks are not charged.
 
-Only `lib/` and `client/` build from this repository. `apps/` is built by `node scripts/build-apps.mjs canvas` from sibling checkouts — `../canvas` on `feat/dsh-host` (vibedev-canvas) and `../director-desk` on `feat/dsh-procedural-mannequin` (vibedev-director-desk); both are private repositories, so only maintainers can rebuild `apps/`. The script replaces only `apps/canvas`: a checkout that comes from 0.1 must delete the other folders under `apps/` by hand, or the package check refuses to pack. The same step removes the files `scripts/app-excludes.mjs` lists (the director desk's experiment and smoke-test pages, benchmark image, and the model-runtime page with its toolchain, about 10 MB) and writes the app's licences and `THIRD-PARTY-NOTICES.txt` (every production npm dependency the bundle can contain, with version, licence, repository and licence text). `node scripts/build-apps.mjs notices canvas` rewrites only those, warning when a checkout is not at the commit the app's `component-build.json` records; `trim` only removes the excluded files. `prepack` builds and then runs `scripts/check-package.mjs`, which refuses to pack without the app, the licence and notice files (with the Apache License beside the director desk's glTF decoders when it has them), with a canvas catalogue that fails the check the agent's tools apply when they read it, with the FFmpeg AAC encoder still in the canvas build (an `aac-encoder` chunk or `licenses/FFmpeg-LGPL-2.1.txt`; this release does not ship it, and the page re-encodes sound with the browser's own AAC encoder), with anything but `canvas` under `apps/`, with a top-level `vendor/` or `models/`, with excluded files present, with stale files in `lib/`, or with build-machine paths in `lib/` or `client/`. `publishConfig` sends `npm publish` to the npm registry.
+**Audio node**: with a VibeDev audio model the node shows only the fields that model declares (music: lyrics, genre, mood, voice; podcast: a web page; speech: reference voices, and only the format / sample rate pairs the model offers). One click is one generation: after a reload or a dropped connection the node picks up the same task, and a result whose charge is still settling is kept, never generated again.
 
-## 可信发布 · Trusted publishing
-
-维护者先在本地构建私有前端、运行类型检查和测试、打出已测 tgz，再为对应源码创建版本标签和附带 `dsh-film-<版本>.tgz` 的正式 GitHub Release。`.github/workflows/publish.yml` 通过 npm OIDC 发布这个原包，不在公共 runner 上重建私有画布和导演台。工作流核对 tag、源码和包内版本、Release 附件摘要；相同版本已发布且字节一致则跳过，内容不同则拒绝；发布后下载 npm 完整包再比对。手动重试未发布版本时，工作流 ref 选对应版本标签。
-
-npm Trusted Publisher 填 GitHub owner `VibeDev-Si`、repository `dsh-film`、workflow `publish.yml`，Environment 留空，勾选 **Allow npm publish**；需要管理 `latest` / `next` 时同时勾选 **Allow npm dist-tag**。仓库不保存 npm token。可信发布不授权 `npm deprecate`，弃用操作仍需交互认证。
-
-Maintainers build and test locally, including the private front ends, then attach the tested archive to the matching tagged GitHub Release. The OIDC workflow publishes those exact bytes, validates the Release digest and source version, refuses conflicting immutable npm versions, and verifies the published tarball. Configure the owner/repository/workflow above; retries of an unpublished version run on its tag ref. Deprecation uses separate interactive authentication.
-
-## 许可 · License
-
-本插件以 MIT 许可证发布，见 `LICENSE`。包里还带着别人的代码，许可证和第三方声明放在这些地方：
-
-- **导演台的场景数学**：`lib/director/vendor/director-math/`（源码在 `src/director/vendor/director-math/`）原样复制自 vibedev-director-desk（源码仓库不公开），Copyright (c) 2026 YZ，MIT；许可证原文在包里的 `lib/director/vendor/director-math/LICENSE`。
-- **分镜画布** `apps/canvas/`：vibedev-canvas，MIT，见 `apps/canvas/LICENSE`。它基于 basketikun 的 Infinite Canvas（MIT）；`apps/canvas/NOTICE` 列出它所基于或改编了代码的每个项目、各自的许可证或授权，以及由每个来源改编的文件（带出处提交）。其中的导演台 `apps/canvas/director-desk/` 来自 vibedev-director-desk（MIT，Copyright (c) 2026 YZ，见 `apps/canvas/director-desk/LICENSE`）。两者打包进去的 npm 依赖见 `apps/canvas/THIRD-PARTY-NOTICES.txt`；导演台自己的构建另带 `apps/canvas/director-desk/THIRD-PARTY-NOTICES.txt` 和 `licenses/`（Mediabunny，MPL-2.0）。
-
-声明文件逐个列出 npm 包时，带了 LICENSE 等文件的附上全文；有些包自己就没带许可证文件，声明里写明了，并给出它在 package.json 里声明的许可证。
-
-dsh-film is MIT (`LICENSE`). The third-party code in the package and where its licences and notices are: the director desk's scene math (MIT, Copyright (c) 2026 YZ) at `lib/director/vendor/director-math/LICENSE`; the storyboard canvas and its director desk at `apps/canvas/LICENSE`, `apps/canvas/NOTICE` (the canvas is based on Infinite Canvas by basketikun, MIT; the NOTICE names each project the canvas is based on or adapts code from, with the licence or permission it is used under, and lists each derived file with its source commit), `apps/canvas/director-desk/LICENSE` and `apps/canvas/THIRD-PARTY-NOTICES.txt` (the desk's own build adds notices in `apps/canvas/director-desk/`). The notices list every npm package with the licence files it ships; packages that ship none are marked as such, with the licence their package.json declares.
+**Third-party content**: the workbench is based on [ToonFlow](https://github.com/HBAI-Ltd/Toonflow-app) (MIT, see `licenses/ToonFlow-LICENSE.txt`); the bundled editor node, tools and skills are listed in `docs/THIRD-PARTY.md`.

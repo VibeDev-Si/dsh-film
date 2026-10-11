@@ -1,7 +1,18 @@
 node_modules/
-/lib/
-/client/
-coverage/
-*.tgz
+lib/
+dist/
+build/
+# The assembled ToonFlow app (~170 MB) is built from the ToonFlow checkout by
+# scripts/assemble-app.mjs and packed into the tarball; it is not committed.
+apps/toonflow/
+*.tsbuildinfo
+*.log
 .DS_Store
-/apps/
+Thumbs.db
+[Dd]esktop.ini
+.env
+.env.*
+!.env.example
+.tmp/
+
+*.tgz

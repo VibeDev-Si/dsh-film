@@ -1,11 +1,10 @@
 {
   "name": "dsh-film",
-  "version": "0.4.0",
-  "description": "VibeDev 影视工作台：在 DeepSeek Harness 和 VibeDev 的右侧侧栏里写剧本、排分镜和调度导演台，Agent 用影视工具协同改片 · Film workbench for DeepSeek Harness and VibeDev: screenplay, storyboard canvas and director desk in the right sidebar, with film tools for the agent",
+  "version": "0.5.0",
+  "description": "VibeDev 影视工作台：在 DeepSeek Harness 和 VibeDev 的右侧栏打开画布式影视工作台（剧本、分镜画布、图片/视频/音频生成、剪辑成片），模型与费用统一走 VibeDev 账号 · VibeDev Film: a canvas film workbench in the right sidebar of DeepSeek Harness and VibeDev (script, storyboard canvas, image/video/audio generation, editing), with every model and charge through the VibeDev account",
   "type": "module",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
-  "icon": "./icon.svg",
   "exports": {
     ".": {
       "types": "./lib/index.d.ts",
@@ -13,19 +12,24 @@
     },
     "./client": "./client/client.js",
     "./cordis.patch.yml": "./cordis.patch.yml",
-    "./package.json": "./package.json",
-    "./locale/*.json": "./locale/*.json"
+    "./package.json": "./package.json"
   },
   "files": [
     "lib",
     "client",
     "apps",
-    "skills",
-    "locale",
-    "icon.svg",
+    "scripts/verify-package.mjs",
     "cordis.patch.yml",
+    "licenses",
+    "docs/THIRD-PARTY.md",
     "README.md",
     "LICENSE"
+  ],
+  "os": [
+    "win32"
+  ],
+  "cpu": [
+    "x64"
   ],
   "dsh": {
     "bundle": {
@@ -43,15 +47,12 @@
   "keywords": [
     "dsh",
     "dsh-plugin",
-    "deepseek",
     "deepseek-harness",
     "vibedev",
     "film",
-    "filmmaking",
+    "toonflow",
     "screenplay",
-    "screenwriting",
-    "storyboard",
-    "ai-agent"
+    "storyboard"
   ],
   "homepage": "https://github.com/VibeDev-Si/dsh-film#readme",
   "repository": {
@@ -69,43 +70,36 @@
     "registry": "https://registry.npmjs.org/"
   },
   "scripts": {
-    "clean": "node scripts/clean.mjs",
-    "build": "node scripts/clean.mjs && tsc -p tsconfig.build.json && node scripts/copy-licenses.mjs && npm run build:client",
-    "build:client": "tsdown && node scripts/check-client.mjs",
-    "build:apps": "node scripts/build-apps.mjs",
-    "build:notices": "node scripts/build-apps.mjs notices",
-    "check:package": "node scripts/check-package.mjs",
+    "clean": "node -e \"require('node:fs').rmSync('lib',{recursive:true,force:true});require('node:fs').rmSync('client',{recursive:true,force:true})\"",
+    "build": "npm run clean && npm run build:host && npm run build:client",
+    "build:host": "tsdown --config tsdown.host.config.ts && tsc -p tsconfig.build.json",
+    "build:client": "tsdown",
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.client.json",
     "test": "vitest run",
-    "prepack": "npm run build && node scripts/check-package.mjs"
+    "check:browser": "node scripts/browser-check.mjs",
+    "check:package": "node scripts/verify-package.mjs",
+    "prepack": "npm run build"
+  },
+  "dependencies": {
+    "zod": "^3.25.76"
   },
   "peerDependencies": {
-    "@deepseek-ai/cordis": "^4.0.2",
+    "@deepseek-ai/cordis": "^4.0.4",
+    "@deepseek-ai/dsh-client-connection": ">=0.2.0-rc.2 <0.3.0",
     "@deepseek-ai/dsh-tools": ">=0.2.0-rc.2 <0.3.0",
-    "@deepseek-ai/schemastery": "^3.18.2"
+    "@deepseek-ai/schemastery": "^3.18.4",
+    "@vibedev-si/dsh-vibedev": ">=0.2.7"
   },
   "devDependencies": {
     "@deepseek-ai/cordis": "4.0.4",
-    "@deepseek-ai/dsh-agent": "0.2.0-rc.2",
     "@deepseek-ai/dsh-client-connection": "0.2.0-rc.2",
-    "@deepseek-ai/dsh-client-ui-primitives": "^0.2.0-rc.2",
-    "@deepseek-ai/dsh-llm": "0.2.0-rc.2",
-    "@deepseek-ai/dsh-system-prompt": "0.2.0-rc.2",
     "@deepseek-ai/dsh-tools": "0.2.0-rc.2",
     "@deepseek-ai/schemastery": "3.18.4",
     "@types/node": "^22.10.0",
     "@types/react": "^18.3.12",
-    "@types/react-dom": "^18.3.1",
-    "lightningcss": "^1.30.1",
     "react": "^18.3.1",
-    "react-dom": "^18.3.1",
     "tsdown": "^0.22.14",
     "typescript": "~5.9.3",
     "vitest": "^4.1.8"
-  },
-  "dependencies": {
-    "jszip": "3.10.1",
-    "mediabunny": "~1.56.3",
-    "zod": "^3.25.76"
   }
 }
