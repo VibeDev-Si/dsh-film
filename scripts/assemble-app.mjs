@@ -86,10 +86,14 @@ if (existsSync(vendor)) {
 const retiredTools = ['askUser', 'browser', 'webFetch', 'webSearch']
 for (const name of retiredTools) rmSync(join(target, 'build/tools', `${name}.tool.js`), { force: true })
 
-// The runtime the plugin starts the server with; the user installs nothing.
-const bun = process.env.BUN_PATH ?? execFileSync(process.platform === 'win32' ? 'where' : 'which', ['bun'], { encoding: 'utf8' }).split(/\r?\n/)[0].trim()
-mkdirSync(join(target, 'runtime'), { recursive: true })
-copyFileSync(bun, join(target, 'runtime', process.platform === 'win32' ? 'bun.exe' : 'bun'))
+// The runtime is the official Bun package the plugin depends on (@oven/bun-windows-x64), installed with it;
+// a copy in apps/toonflow/runtime is only placed on request (FILM_PLACE_RUNTIME=1), for a checkout used without installing.
+rmSync(join(target, 'runtime'), { recursive: true, force: true })
+if (process.env.FILM_PLACE_RUNTIME === '1') {
+  const bun = process.env.BUN_PATH ?? execFileSync(process.platform === 'win32' ? 'where' : 'which', ['bun'], { encoding: 'utf8' }).split(/\r?\n/)[0].trim()
+  mkdirSync(join(target, 'runtime'), { recursive: true })
+  copyFileSync(bun, join(target, 'runtime', process.platform === 'win32' ? 'bun.exe' : 'bun'))
+}
 
 const mb = (value) => `${(value / 1024 / 1024).toFixed(1)} MB`
 console.log(`已组装 ${target}`)
@@ -97,6 +101,7 @@ for (const part of parts) {
   const directory = join(target, 'build', part)
   if (existsSync(directory)) console.log(`  build/${part.padEnd(10)} ${mb(bytes(directory))}`)
 }
-console.log(`  runtime/bun  ${mb(statSync(join(target, 'runtime', process.platform === 'win32' ? 'bun.exe' : 'bun')).size)}`)
+const placedRuntime = join(target, 'runtime', process.platform === 'win32' ? 'bun.exe' : 'bun')
+console.log(existsSync(placedRuntime) ? `  runtime/bun  ${mb(statSync(placedRuntime).size)}` : '  runtime      由依赖 @oven/bun-windows-x64 提供')
 for (const extra of extras) console.log(`  内置第三方包 ${extra}  ${mb(statSync(join(target, extra)).size)}`)
 console.log(`合计 ${mb(bytes(target))}`)

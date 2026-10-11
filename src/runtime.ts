@@ -2,6 +2,7 @@ import { spawn, type ChildProcess } from 'node:child_process'
 import { randomBytes } from 'node:crypto'
 import { createWriteStream, type WriteStream } from 'node:fs'
 import { access, mkdir, readdir, readFile, unlink, writeFile } from 'node:fs/promises'
+import { createRequire } from 'node:module'
 import { homedir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -22,8 +23,9 @@ export interface RuntimeOptions {
   /** Film's data directory. Defaults to `<home>/.vibedev/film-studio/data`. */
   dataDirectory?: string
   /**
-   * The executable that runs the ToonFlow server. Empty means: the runtime bundled
-   * in `apps/toonflow/runtime`, else the host's own executable, else `bun` on PATH.
+   * The executable that runs the ToonFlow server. Empty means: a runtime placed in
+   * `apps/toonflow/runtime`, else the Bun package installed with the plugin
+   * (`@oven/bun-windows-x64`), else the host's own executable.
    */
   runtimePath?: string
 }
@@ -181,11 +183,33 @@ export function staleLogs(names: readonly string[], keep = LOG_FILES_KEPT): stri
   return logs.length <= keep ? [] : logs.slice(0, logs.length - keep)
 }
 
-/** The executable that runs the server: the configured one, a bundled runtime, the host itself, else bun. */
+/**
+ * The Bun runtime installed with the plugin: the official `@oven/bun-<platform>-<arch>`
+ * package (a dependency of the published plugin), resolved from the plugin's own location.
+ * @returns the executable, or undefined when the package is not installed (a linked checkout).
+ */
+export function dependencyRuntime(): string | undefined {
+  const platform = process.platform === 'win32' ? 'windows' : process.platform
+  const executable = process.platform === 'win32' ? 'bun.exe' : 'bun'
+  try {
+    const manifest = createRequire(import.meta.url).resolve(`@oven/bun-${platform}-${process.arch}/package.json`)
+    return join(dirname(manifest), 'bin', executable)
+  } catch {
+    return undefined
+  }
+}
+
+/**
+ * The executable that runs the server: the configured one, a runtime placed in
+ * `apps/toonflow/runtime` (development builds), the Bun package installed with the
+ * plugin, the host itself, else bun.
+ */
 async function resolveRuntime(configured: string | undefined, root: string): Promise<{ command: string; env: NodeJS.ProcessEnv }> {
   if (configured !== undefined && configured.trim() !== '') return { command: configured.trim(), env: {} }
   const bundled = join(root, 'runtime', process.platform === 'win32' ? 'bun.exe' : 'bun')
   if (await exists(bundled)) return { command: bundled, env: {} }
+  const installed = dependencyRuntime()
+  if (installed !== undefined && await exists(installed)) return { command: installed, env: {} }
   // The host's own executable runs Node code with this switch (Electron and Node both honour it).
   const host = process.execPath
   return { command: host, env: { ELECTRON_RUN_AS_NODE: '1' } }

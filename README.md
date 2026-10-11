@@ -8,7 +8,7 @@
 
 从 0.5.0 起，`dsh-film` 是基于 ToonFlow 的画布式工作台，取代 0.4.0 及更早的旧工作台。在 VibeDev 生态（插件中心）里更新即可，配置条目仍是 `dsh-film`；旧工作台的项目文件不会被删除，也不会自动转换。
 
-- **只支持 Windows x64**：插件自带运行时（Bun），用户不用另外安装任何东西。
+- **只支持 Windows x64**：Bun 运行时随插件一起安装（官方的 `@oven/bun-windows-x64` 包），用户不用另外安装任何东西。
 - **需要 VibeDev 账号插件**：图片和视频生成需要 0.2.7 及以上；音频生成（音乐、播客、语音）需要 **0.3.1 及以上**。
 
 ## 生成节点的费用
@@ -57,7 +57,7 @@ node scripts/verify-package.mjs dsh-film-<版本>.tgz      # 用打好的包启�
 
 **dsh-film** opens a canvas film workbench in the right sidebar of DeepSeek Harness and VibeDev: novel breakdown, script, storyboard canvas, image / video / audio generation, director desk and editing. Every model and charge goes through the VibeDev account (`@vibedev-si/dsh-vibedev`); no model API keys are needed.
 
-**0.5.0** replaces the earlier workbench (0.4.0 and before) with the ToonFlow-based canvas. Update it from the VibeDev Plugin Center; the profile entry stays `dsh-film`. Projects of the old workbench are kept, not converted. Windows x64 only (the plugin ships its own Bun runtime). Image and video generation need the account plugin 0.2.7 or later; audio (music, podcasts, speech) needs 0.3.1 or later.
+**0.5.0** replaces the earlier workbench (0.4.0 and before) with the ToonFlow-based canvas. Update it from the VibeDev Plugin Center; the profile entry stays `dsh-film`. Projects of the old workbench are kept, not converted. Windows x64 only (the Bun runtime is installed with the plugin, from the official `@oven/bun-windows-x64` package). Image and video generation need the account plugin 0.2.7 or later; audio (music, podcasts, speech) needs 0.3.1 or later.
 
 **Cost beside the send button**: the image, video and audio nodes show the expected cost to the left of the send button, with how it is reached on hover. Images per image (by size bucket when one has its own price); video per generation, or per second × the chosen duration at the chosen resolution (`约`, plus `起` when reference videos add their length); music and podcasts per generation; speech per second of original audio (playback and billed lengths are shown apart once it ran). A model the catalog gives no price is shown as "未定价" (not priced), never as free. Prices are the account's selling prices; the VibeDev receipt is the charge, and failed tasks are not charged.
 

@@ -17,30 +17,52 @@
  * Models are not exercised (they need a signed-in VibeDev account). Exit code 0\n * means the artifact boots and gates the page.
  */
 import { spawn } from 'node:child_process'
-import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync } from 'node:fs'
+import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { execFileSync } from 'node:child_process'
 import { createInterface } from 'node:readline'
 import { tmpdir } from 'node:os'
-import { join, resolve } from 'node:path'
+import { createRequire } from 'node:module'
+import { dirname, join, resolve } from 'node:path'
 
 const argument = process.argv[2]
 const scratch = mkdtempSync(join(tmpdir(), 'film-verify-'))
 let root = resolve('apps/toonflow')
+/** Where the plugin's dependencies resolve from (the runtime package). */
+let packageDirectory = resolve('.')
 if (argument !== undefined) {
   if (argument.toLowerCase().endsWith('.tgz')) {
-    console.log(`解包 ${argument} …`)
-    execFileSync('tar', ['-xzf', resolve(argument), '-C', scratch], { stdio: 'inherit' })
-    root = join(scratch, 'package', 'apps/toonflow')
+    // Installed as a user gets it: the archive plus its dependencies (the Bun runtime package).
+    console.log(`安装 ${argument}（含依赖）…`)
+    // A project of its own, so npm installs here and never into a parent folder.
+    writeFileSync(join(scratch, 'package.json'), JSON.stringify({ name: 'film-verify', private: true }))
+    execFileSync(process.platform === 'win32' ? 'npm.cmd' : 'npm', ['install', '--no-save', '--omit=peer', '--ignore-scripts', '--no-audit', '--no-fund', resolve(argument)],
+      { cwd: scratch, stdio: 'inherit', shell: process.platform === 'win32' })
+    const name = JSON.parse(execFileSync('tar', ['-xOzf', resolve(argument), 'package/package.json'], { encoding: 'utf8' })).name
+    packageDirectory = join(scratch, 'node_modules', name)
+    root = join(packageDirectory, 'apps/toonflow')
   } else {
     root = resolve(argument, 'apps/toonflow')
     if (!existsSync(root)) root = resolve(argument)
+    packageDirectory = resolve(argument)
   }
 }
 
 const entry = join(root, 'build/server/film.js')
-const runtime = join(root, 'runtime', process.platform === 'win32' ? 'bun.exe' : 'bun')
+const executable = process.platform === 'win32' ? 'bun.exe' : 'bun'
+const placed = join(root, 'runtime', executable)
+/** The runtime the plugin starts: one placed in apps/toonflow/runtime, else the installed @oven/bun-* package. */
+function installedRuntime() {
+  const platform = process.platform === 'win32' ? 'windows' : process.platform
+  try {
+    const manifest = createRequire(join(packageDirectory, 'package.json')).resolve(`@oven/bun-${platform}-${process.arch}/package.json`)
+    return join(dirname(manifest), 'bin', executable)
+  } catch {
+    return join(packageDirectory, 'node_modules', `@oven/bun-${platform}-${process.arch}`, 'bin', executable)
+  }
+}
+const runtime = existsSync(placed) ? placed : installedRuntime()
 let missing = false
-for (const [what, path] of [['Film 入口', entry], ['随包运行时', runtime], ['Web 产物', join(root, 'build/web/index.html')]]) {
+for (const [what, path] of [['Film 入口', entry], ['Bun 运行时', runtime], ['Web 产物', join(root, 'build/web/index.html')]]) {
   if (!existsSync(path)) { console.error(`✗ 缺少${what}：${path}`); missing = true; continue }
   console.log(`✓ ${what}：${path}`)
 }
