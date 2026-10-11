@@ -1,5 +1,5 @@
 window.__ModuleLoader__.load({
-	id: "dsh-film-studio",
+	id: "dsh-film",
 	factory: (require) => {
 		var module = { exports: {} };
 		var exports = module.exports;

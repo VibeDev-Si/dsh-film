@@ -11,10 +11,17 @@ import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { defineConfig } from 'tsdown'
 
-const id = 'dsh-film-studio'
+const packageJson = JSON.parse(readFileSync(resolve(process.cwd(), 'package.json'), 'utf8')) as { name: string; version: string }
+
+/**
+ * The Host loads a package's client half under the package name and waits for a
+ * registration with exactly that id: a bundle registered under any other id never
+ * activates, and the whole web boot fails. So the id is the package name, never a literal.
+ */
+const id = packageJson.name
 
 /** The package version, compiled into the bundle for diagnostics. */
-const packageVersion = (JSON.parse(readFileSync(resolve(process.cwd(), 'package.json'), 'utf8')) as { version: string }).version
+const packageVersion = packageJson.version
 
 /** Modules the Host's module table provides; a `require` it cannot answer throws at load. */
 const CLIENT_EXTERNALS = ['react', 'react/jsx-runtime', 'react-dom', '@deepseek-ai/dsh-client-ui-primitives']

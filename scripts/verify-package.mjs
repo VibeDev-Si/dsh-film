@@ -68,6 +68,18 @@ for (const [what, path] of [['Film 入口', entry], ['Bun 运行时', runtime], 
 }
 if (missing) process.exit(1)
 
+// The Host loads the client half under the package name and waits for a registration with exactly
+// that id; any other id never activates and the whole web boot fails (dsh-film 0.5.0–0.5.2).
+if (existsSync(join(packageDirectory, 'client/client.js'))) {
+  const packageName = JSON.parse(readFileSync(join(packageDirectory, 'package.json'), 'utf8')).name
+  const registered = /^window\.__ModuleLoader__\.load\(\{\s*id: "([^"]+)"/.exec(readFileSync(join(packageDirectory, 'client/client.js'), 'utf8'))?.[1]
+  if (registered !== packageName) {
+    console.error(`✗ 客户端注册 id 是 "${registered ?? '（没有）'}"，包名是 "${packageName}"：宿主按包名加载，界面会启动失败`)
+    process.exit(1)
+  }
+  console.log(`✓ 客户端按包名注册：${packageName}`)
+}
+
 // The page's own entry files must exist. A stale index.html pointing at a bundle
 // that is no longer there is a blank page, and it is exactly what a half-written
 // install produced once — so this is checked before the server is even started.

@@ -1,6 +1,6 @@
 {
   "name": "dsh-film",
-  "version": "0.5.2",
+  "version": "0.5.3",
   "description": "VibeDev 影视工作台：在 DeepSeek Harness 和 VibeDev 的右侧栏打开画布式影视工作台（剧本、分镜画布、图片/视频/音频生成、剪辑成片），模型与费用统一走 VibeDev 账号 · VibeDev Film: a canvas film workbench in the right sidebar of DeepSeek Harness and VibeDev (script, storyboard canvas, image/video/audio generation, editing), with every model and charge through the VibeDev account",
   "type": "module",
   "main": "lib/index.js",

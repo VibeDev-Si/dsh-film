@@ -8,14 +8,16 @@ import { describe, expect, it } from 'vitest'
  * Skipped until `npm run build:client` has produced it.
  */
 const file = resolve(import.meta.dirname, '../client/client.js')
+/** The Host loads the client half under the package name; a bundle registered under any other id never activates. */
+const packageName = (JSON.parse(readFileSync(resolve(import.meta.dirname, '../package.json'), 'utf8')) as { name: string }).name
 const built = existsSync(file)
 
 describe.skipIf(!built)('the built client half', () => {
   const source = built ? readFileSync(file, 'utf8') : ''
 
-  it('is one loader factory for this plugin id, with nothing bundled that the Host provides', () => {
+  it('is one loader factory registered under the package name, with nothing bundled that the Host provides', () => {
     expect(source.startsWith('window.__ModuleLoader__.load(')).toBe(true)
-    expect(source).toContain('id: "dsh-film-studio"')
+    expect(/^window\.__ModuleLoader__\.load\(\{\s*id: "([^"]+)"/.exec(source)?.[1]).toBe(packageName)
     expect(source).toContain('factory: (require)')
     // The factory hands the Host's loader the plugin's exports and ends the call.
     expect(source).toContain('return module.exports;')
