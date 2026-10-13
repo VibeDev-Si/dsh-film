@@ -647,8 +647,9 @@ window.__ModuleLoader__.load({
 				(async () => {
 					while (!lifetime.signal.aborted) try {
 						const response = await fetch("api/dsh-film-studio/opens", {
-							method: "POST",
+							method: "GET",
 							credentials: "same-origin",
+							cache: "no-store",
 							signal: lifetime.signal
 						});
 						if (!response.ok) throw new Error(`HTTP ${response.status}`);

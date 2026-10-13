@@ -66,11 +66,14 @@ export function apply(ctx: Context, config: RuntimeOptions): void {
 
   ctx.inject(['connection'], (child) => {
     // The browser half long-polls this for "open the workbench in session X",
-    // which `film_studio_open` asks for from the host side.
+    // which `film_studio_open` asks for from the host side. It is a GET: it only
+    // waits to be told something, and the desktop app, before installing an
+    // update, waits (10 s at most) for every admitted request that is not a read.
+    // As a POST this 25 s poll made that wait miss its deadline.
     child.effect(() => {
       child.connection.fetch.register({
         path: '/api/dsh-film-studio/opens',
-        methods: ['POST'],
+        methods: ['GET'],
         requestBody: 'buffered',
         fetch: async (request) => Response.json({ opens: await opens.wait(25_000, request.signal) }, { headers: { 'cache-control': 'no-store' } }),
       })

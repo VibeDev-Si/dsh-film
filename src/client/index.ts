@@ -105,7 +105,8 @@ export function apply(ctx: ClientContext): void {
     void (async () => {
       while (!lifetime.signal.aborted) {
         try {
-          const response = await fetch('api/dsh-film-studio/opens', { method: 'POST', credentials: 'same-origin', signal: lifetime.signal })
+          // GET, as the route is served: a read never holds up installing a desktop update.
+          const response = await fetch('api/dsh-film-studio/opens', { method: 'GET', credentials: 'same-origin', cache: 'no-store', signal: lifetime.signal })
           if (!response.ok) throw new Error(`HTTP ${response.status}`)
           const body = await response.json() as { opens?: { sessionId?: unknown }[] }
           for (const open of body.opens ?? []) if (typeof open.sessionId === 'string') openTab(open.sessionId)

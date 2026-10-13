@@ -35,4 +35,9 @@ describe.skipIf(!built)('the built client half', () => {
     expect(source).toContain('dsh-film-studio')
     expect(source).toContain('api/dsh-film-studio/open')
   })
+
+  // The Host serves the open feed as GET only (see registration.spec.ts); a POST would get 404 and never open a tab.
+  it('polls the tab open feed with GET, the method the Host route serves', () => {
+    expect(source).toMatch(/fetch\("api\/dsh-film-studio\/opens",\s*\{\s*method: "GET"/)
+  })
 })
