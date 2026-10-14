@@ -19,6 +19,7 @@
     "client",
     "apps",
     "scripts/verify-package.mjs",
+    "scripts/workbench-source.mjs",
     "cordis.patch.yml",
     "licenses",
     "docs/THIRD-PARTY.md",

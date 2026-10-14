@@ -41,15 +41,27 @@
 
 ## 开发
 
+工作台（ToonFlow 的 VibeDev 分支）的源码在私有仓库 [VibeDev-Si/dsh-film-studio](https://github.com/VibeDev-Si/dsh-film-studio) 的 `workbench` 分支；每个发布用到的提交打 `dsh-film-v<版本>` 标签。
+
 ```powershell
 npm install
-node scripts/assemble-app.mjs <已构建的 ToonFlow 目录>   # ToonFlow 里先执行 bun run build && bun run build:nodes
+node scripts/assemble-app.mjs <工作台检出目录>           # 工作台里先执行 bun run build && bun run build:nodes
 npm run typecheck; npm test
 npm pack                                               # dsh-film-<版本>.tgz
-node scripts/verify-package.mjs dsh-film-<版本>.tgz      # 用打好的包启动一次，确认能起来、页面有门禁
+node scripts/verify-package.mjs dsh-film-<版本>.tgz      # 用打好的包启动一次，确认能起来、页面有门禁、来源已发布
 ```
 
-发布：给 `v<版本>` 打标签，建 GitHub Release 并附上同版本的 `dsh-film-<版本>.tgz`，工作流用 OIDC 发到 npm（`.github/workflows/publish.yml`）。原型阶段的内部记录在 `docs/`。
+`assemble-app.mjs` 把工作台的来源提交写进 `apps/toonflow/SOURCE.json`，并拒绝有未提交改动或提交未推送到 `dsh-film-studio` 的工作台；本地调试可加 `--unreleased`，但这样组装的包 `verify-package.mjs` 不放行（调试时可加 `--allow-unreleased`）。
+
+发布顺序：
+
+1. 工作台：提交，推送到 `dsh-film-studio` 的 `workbench` 分支，构建（`bun run build && bun run build:nodes`）。
+2. 本仓库：组装、`npm version <版本> --no-git-tag-version`、测试、打包、`verify-package` 通过。
+3. 工作台打标签 `dsh-film-v<版本>` 并推送；本仓库提交、打 `v<版本>` 标签并推送。
+4. 建 GitHub Release 并附上同版本的 `dsh-film-<版本>.tgz`，工作流用 OIDC 发到 npm（`.github/workflows/publish.yml`），核对 npm 上的包与本地包逐字节一致。npm 有时要十几分钟才能读到新版本；确认步骤超时就等它出现后重跑失败的任务（`gh run rerun <id> --failed`），不要重新发布。
+5. 同步国内镜像：`PUT https://registry-direct.npmmirror.com/-/package/dsh-film/syncs`，确认 npmmirror 上的 integrity 与 npm 一致。VibeDev 用户通过这个镜像安装和更新插件。
+
+原型阶段的内部记录在 `docs/`。
 
 ---
 

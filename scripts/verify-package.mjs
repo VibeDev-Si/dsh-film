@@ -23,8 +23,11 @@ import { createInterface } from 'node:readline'
 import { tmpdir } from 'node:os'
 import { createRequire } from 'node:module'
 import { dirname, join, resolve } from 'node:path'
+import { checkSourceStamp } from './workbench-source.mjs'
 
-const argument = process.argv[2]
+const argument = process.argv.slice(2).find(value => !value.startsWith('--'))
+/** Local work only: a workbench built from uncommitted or unpushed source is not a release. */
+const allowUnreleased = process.argv.includes('--allow-unreleased')
 const scratch = mkdtempSync(join(tmpdir(), 'film-verify-'))
 let root = resolve('apps/toonflow')
 /** Where the plugin's dependencies resolve from (the runtime package). */
@@ -67,6 +70,18 @@ for (const [what, path] of [['Film 入口', entry], ['Bun 运行时', runtime], 
   console.log(`✓ ${what}：${path}`)
 }
 if (missing) process.exit(1)
+
+// The workbench in a release is a build of a commit pushed to the workbench repository (scripts/workbench-source.mjs).
+const stampPath = join(root, 'SOURCE.json')
+let stamp
+try { stamp = existsSync(stampPath) ? JSON.parse(readFileSync(stampPath, 'utf8')) : undefined } catch { stamp = null }
+const stampProblems = checkSourceStamp(stamp)
+if (stampProblems.length > 0) {
+  for (const problem of stampProblems) console.error(`${allowUnreleased ? '!' : '✗'} 工作台来源：${problem}`)
+  if (!allowUnreleased) process.exit(1)
+} else {
+  console.log(`✓ 工作台来源：${stamp.repository} @ ${stamp.commit}`)
+}
 
 // The Host loads the client half under the package name and waits for a registration with exactly
 // that id; any other id never activates and the whole web boot fails (dsh-film 0.5.0–0.5.2).

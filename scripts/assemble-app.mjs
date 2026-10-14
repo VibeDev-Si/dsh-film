@@ -22,18 +22,29 @@
  * `apps/toonflow/` is not committed (it is ~170 MB and rebuilt from ToonFlow); it is
  * packed into the published tarball, so this must run before `npm pack`.
  */
-import { cpSync, existsSync, mkdirSync, readdirSync, rmSync, statSync, copyFileSync } from 'node:fs'
+import { cpSync, existsSync, mkdirSync, readdirSync, rmSync, statSync, copyFileSync, writeFileSync } from 'node:fs'
 import { execFileSync } from 'node:child_process'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { workbenchSource } from './workbench-source.mjs'
 
 const here = resolve(dirname(fileURLToPath(import.meta.url)), '..')
-const requested = process.argv[2] ?? process.env.TOONFLOW_SOURCE
+const flags = process.argv.slice(2).filter(argument => argument.startsWith('--'))
+const requested = process.argv.slice(2).find(argument => !argument.startsWith('--')) ?? process.env.TOONFLOW_SOURCE
 if (requested === undefined || requested.trim() === '') {
-  console.error('请给出已构建的 ToonFlow 目录：node scripts/assemble-app.mjs <toonflow-directory>\n（或设置 TOONFLOW_SOURCE。这里不设默认值，避免依赖某个开发者机器上的路径。）')
+  console.error('请给出已构建的 ToonFlow 目录：node scripts/assemble-app.mjs <toonflow-directory> [--unreleased]\n（或设置 TOONFLOW_SOURCE。这里不设默认值，避免依赖某个开发者机器上的路径。）')
   process.exit(1)
 }
 const source = resolve(requested)
+// The commit the build comes from: committed and pushed to the workbench repository, or this is not a release
+// (`--unreleased` records local work; verify-package.mjs then refuses the package).
+let origin
+try {
+  origin = workbenchSource(source, { allowUnreleased: flags.includes('--unreleased') })
+} catch (error) {
+  console.error(error instanceof Error ? error.message : String(error))
+  process.exit(1)
+}
 const target = join(here, 'apps/toonflow')
 const parts = ['server', 'web', 'tools', 'nodes', 'ext', 'providers', 'skills']
 /** Not used by the Film entry (it belongs to the desktop/server entry), and a duplicate 21 MB bundle. */
@@ -95,8 +106,12 @@ if (process.env.FILM_PLACE_RUNTIME === '1') {
   copyFileSync(bun, join(target, 'runtime', process.platform === 'win32' ? 'bun.exe' : 'bun'))
 }
 
+// Which workbench commit this build is: packed into the npm archive, checked by verify-package.mjs.
+writeFileSync(join(target, 'SOURCE.json'), `${JSON.stringify(origin, null, 2)}\n`)
+
 const mb = (value) => `${(value / 1024 / 1024).toFixed(1)} MB`
 console.log(`已组装 ${target}`)
+console.log(`  来源 ${origin.repository} @ ${origin.commit}${origin.released ? '' : '（未发布的本地构建，不能用于发布）'}`)
 for (const part of parts) {
   const directory = join(target, 'build', part)
   if (existsSync(directory)) console.log(`  build/${part.padEnd(10)} ${mb(bytes(directory))}`)
