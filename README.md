@@ -51,6 +51,8 @@ npm pack                                               # dsh-film-<版本>.tgz
 node scripts/verify-package.mjs dsh-film-<版本>.tgz      # 用打好的包启动一次，确认能起来、页面有门禁、来源已发布
 ```
 
+源码集成测试读取 `FILM_TEST_SOURCE`，请将它设为已构建的工作台检出目录；未设置时只跳过该源码集成用例。测试使用本地模型与媒体服务模拟，不需要账号密钥，也不会提交付费生成。
+
 `assemble-app.mjs` 把工作台的来源提交写进 `apps/toonflow/SOURCE.json`，并拒绝有未提交改动或提交未推送到 `dsh-film-studio` 的工作台；本地调试可加 `--unreleased`，但这样组装的包 `verify-package.mjs` 不放行（调试时可加 `--allow-unreleased`）。
 
 `node scripts/install-app.mjs <安装目录> [包根目录或 .tgz]` 会在暂存目录检查 Web 资源与本机 Bun 运行时；没有内置运行时时先安装生产依赖，验证通过后才替换原安装。`npm run check:browser` 可使用 macOS 的 Chrome 或 Edge，并从插件依赖解析 Bun。
