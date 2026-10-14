@@ -2,11 +2,11 @@ import { spawn, type ChildProcess } from 'node:child_process'
 import { randomBytes } from 'node:crypto'
 import { createWriteStream, type WriteStream } from 'node:fs'
 import { access, mkdir, readdir, readFile, unlink, writeFile } from 'node:fs/promises'
-import { createRequire } from 'node:module'
 import { homedir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { createInterface } from 'node:readline'
+import { installedBunRuntime } from '../scripts/bun-runtime.mjs'
 import { startBridge, type WorkspaceEntry } from './bridge.js'
 import type { MediaService } from './contracts.js'
 import type { OneShotServices } from './oneshot.js'
@@ -25,7 +25,7 @@ export interface RuntimeOptions {
   /**
    * The executable that runs the ToonFlow server. Empty means: a runtime placed in
    * `apps/toonflow/runtime`, else the Bun package installed with the plugin
-   * (`@oven/bun-windows-x64`), else the host's own executable.
+   * (the platform's official `@oven/bun-*` package), else the host's own executable.
    */
   runtimePath?: string
 }
@@ -185,18 +185,11 @@ export function staleLogs(names: readonly string[], keep = LOG_FILES_KEPT): stri
 
 /**
  * The Bun runtime installed with the plugin: the official `@oven/bun-<platform>-<arch>`
- * package (a dependency of the published plugin), resolved from the plugin's own location.
+ * package (an optional dependency of the published plugin), resolved from the plugin's own location.
  * @returns the executable, or undefined when the package is not installed (a linked checkout).
  */
 export function dependencyRuntime(): string | undefined {
-  const platform = process.platform === 'win32' ? 'windows' : process.platform
-  const executable = process.platform === 'win32' ? 'bun.exe' : 'bun'
-  try {
-    const manifest = createRequire(import.meta.url).resolve(`@oven/bun-${platform}-${process.arch}/package.json`)
-    return join(dirname(manifest), 'bin', executable)
-  } catch {
-    return undefined
-  }
+  return installedBunRuntime(PLUGIN_ROOT)
 }
 
 /**

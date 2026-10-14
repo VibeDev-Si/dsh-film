@@ -20,17 +20,12 @@
     "apps",
     "scripts/verify-package.mjs",
     "scripts/workbench-source.mjs",
+    "scripts/bun-runtime.mjs",
     "cordis.patch.yml",
     "licenses",
     "docs/THIRD-PARTY.md",
     "README.md",
     "LICENSE"
-  ],
-  "os": [
-    "win32"
-  ],
-  "cpu": [
-    "x64"
   ],
   "dsh": {
     "bundle": {
@@ -82,8 +77,12 @@
     "prepack": "npm run build"
   },
   "dependencies": {
-    "@oven/bun-windows-x64": "1.3.13",
     "zod": "^3.25.76"
+  },
+  "optionalDependencies": {
+    "@oven/bun-windows-x64": "1.3.13",
+    "@oven/bun-darwin-aarch64": "1.3.13",
+    "@oven/bun-darwin-x64": "1.3.13"
   },
   "peerDependencies": {
     "@deepseek-ai/cordis": "^4.0.4",

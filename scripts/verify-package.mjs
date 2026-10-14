@@ -21,9 +21,9 @@ import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, w
 import { execFileSync } from 'node:child_process'
 import { createInterface } from 'node:readline'
 import { tmpdir } from 'node:os'
-import { createRequire } from 'node:module'
-import { dirname, join, resolve } from 'node:path'
+import { join, resolve } from 'node:path'
 import { checkSourceStamp } from './workbench-source.mjs'
+import { bunRuntimeFor, installedBunRuntime } from './bun-runtime.mjs'
 
 const argument = process.argv.slice(2).find(value => !value.startsWith('--'))
 /** Local work only: a workbench built from uncommitted or unpushed source is not a release. */
@@ -51,19 +51,14 @@ if (argument !== undefined) {
 }
 
 const entry = join(root, 'build/server/film.js')
-const executable = process.platform === 'win32' ? 'bun.exe' : 'bun'
+const { packageName, executable } = bunRuntimeFor(process.platform, process.arch)
 const placed = join(root, 'runtime', executable)
-/** The runtime the plugin starts: one placed in apps/toonflow/runtime, else the installed @oven/bun-* package. */
-function installedRuntime() {
-  const platform = process.platform === 'win32' ? 'windows' : process.platform
-  try {
-    const manifest = createRequire(join(packageDirectory, 'package.json')).resolve(`@oven/bun-${platform}-${process.arch}/package.json`)
-    return join(dirname(manifest), 'bin', executable)
-  } catch {
-    return join(packageDirectory, 'node_modules', `@oven/bun-${platform}-${process.arch}`, 'bin', executable)
-  }
+const runtime = existsSync(placed) ? placed : installedBunRuntime(packageDirectory)
+if (runtime === undefined) {
+  console.error(`✗ 缺少 Bun 运行时：请安装本机可选依赖 ${packageName}`)
+  process.exit(1)
 }
-const runtime = existsSync(placed) ? placed : installedRuntime()
+console.log(`✓ Bun 平台依赖：${packageName}${existsSync(placed) ? '（使用内置运行时）' : ''}`)
 let missing = false
 for (const [what, path] of [['Film 入口', entry], ['Bun 运行时', runtime], ['Web 产物', join(root, 'build/web/index.html')]]) {
   if (!existsSync(path)) { console.error(`✗ 缺少${what}：${path}`); missing = true; continue }
