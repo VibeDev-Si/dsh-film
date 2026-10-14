@@ -178,7 +178,7 @@ describe.skipIf(!available)('the packaged Film app', () => {
       const listed = center.projects.map(project => project.directory)
       expect(listed).toEqual(expect.arrayContaining([first.directory, join(other, 'VibeDev Film (2)'), imported]))
       expect(listed).not.toContain(join(other, 'VibeDev Film'))
-      expect(listed).not.toContain(join(workspace, '第二季'))
+      expect(listed).toContain(join(workspace, '第二季'))
       expect(center.workspaces).toHaveLength(2)
       expect(center.projects.find(project => project.directory === imported)?.source).toBe('imported')
     } finally {
