@@ -123,6 +123,62 @@ describe('Film account bridge', () => {
     expect(done).toMatchObject({ status: 'completed', settlement: 'pending', outputs: [{ path: 'assets/node-1/audio-op-1.mp3', mimeType: 'audio/mpeg', mediaType: 'audio', durationSeconds: 4.2, originalSeconds: 5 }] })
     expect(media.result).toHaveBeenCalledWith('op-1')
   })
+  it('keeps the video Token price and its issue on catalog models as the account plugin states them', async () => {
+    const { call, media } = await setup()
+    const videoPricing = { schemaVersion: 1, currency: 'CNY', finalBasis: 'provider_tokens', estimateBasis: 'output_plus_reference_video_seconds', estimateOnly: true, rules: [
+      { resolution: '480p', referenceVideo: false, pricePerMillionTokensCny: 60.06, estimatedPricePerSecondCny: 0.5819 },
+      { resolution: '480p', referenceVideo: true, pricePerMillionTokensCny: 36.036, estimatedPricePerSecondCny: 0.6952 },
+    ] }
+    media.models = vi.fn(async () => [
+      { id: 'video-sd-2.5(TC)', name: 'SD 2.5', kind: 'video', inputModalities: ['text'], videoPricing },
+      { id: 'video-next', name: 'Next', kind: 'video', inputModalities: ['text'], videoPricingIssue: 'unknown-schema' },
+    ] as never)
+    expect((await (await call('/catalog')).json() as { media: unknown[] }).media).toEqual([
+      expect.objectContaining({ id: 'video-sd-2.5(TC)', videoPricing }),
+      expect.objectContaining({ id: 'video-next', videoPricingIssue: 'unknown-schema' }),
+    ])
+  })
+  it('quotes a video price through the account plugin without generating, and says unsupported on an older plugin', async () => {
+    const { call, media } = await setup()
+    const request = { model: 'video-sd-2.5(TC)', resolution: '480p', durationSeconds: 7, references: { videos: [{ durationSeconds: 5 }, {}], images: 1, audios: 0 } }
+    // An account plugin without videoQuote: answered, not an error, so the node can say so.
+    const older = await call('/media/video-quote', { request })
+    expect(older.status).toBe(200)
+    expect(await older.json()).toEqual({ status: 'unsupported' })
+    const quote = {
+      status: 'estimate', mode: 'video_token', model: 'video-sd-2.5(TC)', currency: 'CNY', amountCny: '8.3424',
+      estimatedPricePerSecondCny: 0.6952, pricePerMillionTokensCny: 36.036, outputSeconds: 7, referenceVideoSeconds: 5, billedSeconds: 12,
+      rule: { resolution: '480p', referenceVideo: true }, estimateOnly: true, finalBasis: 'provider_tokens',
+      label: { zh: '预计 ¥8.34 · 最终按实际视频 Token 结算', en: 'about ¥8.34 · billed by actual video Tokens' },
+      basis: { zh: '¥0.6952/秒 × (7 秒输出 + 5 秒参考视频)，¥36.036/百万 Token', en: '' },
+    }
+    media.videoQuote = vi.fn(async () => quote as never)
+    const answered = await call('/media/video-quote', { request })
+    expect(answered.status).toBe(200)
+    expect(await answered.json()).toEqual(quote)
+    expect(media.videoQuote).toHaveBeenCalledWith(request, expect.any(AbortSignal))
+    // Strict body: unknown fields, a zero (never "unknown") reference length and a missing request are refused first.
+    for (const body of [{ request: { ...request, extra: 1 } }, { request, directory: 'C:/ws' }, { request: { ...request, references: { videos: [{ durationSeconds: 0 }] } } }, {}]) {
+      expect((await call('/media/video-quote', body)).status).toBe(400)
+    }
+    expect(media.videoQuote).toHaveBeenCalledTimes(1)
+    expect(media.startVideo).not.toHaveBeenCalled()
+  })
+  it('passes the settlement, its pending reason and the Token billing through the task views', async () => {
+    const { call, cwd, media } = await setup()
+    let output = ''
+    media.startVideo = vi.fn(async (_request, target) => {
+      output = join(target.folder, target.stem + '.mp4')
+      await writeFile(output, 'video')
+      // Completed: the video exists; only the charge is still being confirmed.
+      return { id: 'video-1', status: 'completed', outputs: [{ path: output }], settlement: 'pending', settlementPendingReason: 'usage_counters_inconsistent', estimatedCny: '3.98' }
+    })
+    const started = await (await call('/media/video', { directory: cwd, request: { modelId: 'video', prompt: 'move' } })).json() as Record<string, unknown>
+    expect(started).toMatchObject({ id: 'video-1', status: 'completed', settlement: 'pending', settlementPendingReason: 'usage_counters_inconsistent', estimatedCny: '3.98', outputs: [{ mediaType: 'video' }] })
+    expect(started).not.toHaveProperty('chargedCny')
+    media.task = async () => ({ id: 'video-1', status: 'completed', outputs: [{ path: output }], settlement: 'settled', chargedCny: '3.98066354', estimatedCny: '3.98', billing: { tokens: 100858 } })
+    expect(await (await call('/task/video-1')).json()).toMatchObject({ status: 'completed', settlement: 'settled', chargedCny: '3.98066354', estimatedCny: '3.98', billing: { tokens: 100858 } })
+  })
   it('resumes an audio operation after a reload without ever starting one', async () => {
     const { call, cwd, media } = await setup()
     media.startAudio = vi.fn(async () => ({ id: 'x', status: 'pending' }))

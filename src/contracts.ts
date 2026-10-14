@@ -8,7 +8,41 @@ export interface MediaModel {
     unreadableModesVersion?: number; durations?: number[]; resolutions?: string[]; ratios?: string[]; nativeAudio?: boolean
     textToVideo?: boolean; firstFrame?: boolean; lastFrame?: boolean; imageToVideo?: boolean
     maxReferenceImages?: number; maxReferenceVideos?: number; maxReferenceAudios?: number }
+  /** Conditional video Token price (account plugin; passed through unchanged). Quote it with `videoQuote`, never as a per-second price. */
+  videoPricing?: VideoTokenPricing
+  /** Set instead of `videoPricing` when the catalog has one this account plugin cannot use; never falls back to legacy pricing. */
+  videoPricingIssue?: 'unknown-schema' | 'invalid'
 }
+export interface VideoTokenRule {
+  resolution: string
+  /** Absent = any; `false` = none allowed; `true` = at least one. First/last frames count as image references. */
+  referenceVideo?: boolean; referenceAudio?: boolean; referenceImage?: boolean
+  pricePerMillionTokensCny: number
+  /** Absent = unknown, not zero. */
+  estimatedPricePerSecondCny?: number
+}
+export interface VideoTokenPricing {
+  schemaVersion: 1; currency: 'CNY'; finalBasis: 'provider_tokens'; estimateBasis: 'output_plus_reference_video_seconds'
+  estimateOnly: boolean; rules: readonly VideoTokenRule[]
+}
+/** What a video would cost, asked before anything is uploaded or submitted. */
+export interface VideoQuoteRequest {
+  model: string; resolution?: string; durationSeconds?: number
+  /** One entry per reference video (no `durationSeconds` = unknown); `images` counts first/last frames; `generateAudio` is not an audio reference. */
+  references?: { videos?: readonly { durationSeconds?: number }[]; images?: number; audios?: number }
+}
+type Bilingual = { en: string; zh: string }
+export type VideoQuote =
+  | { status: 'estimate'; mode: 'video_token'; model: string; currency: 'CNY'; amountCny: string
+      estimatedPricePerSecondCny: number; pricePerMillionTokensCny: number
+      outputSeconds: number; referenceVideoSeconds: number; billedSeconds: number
+      rule: { resolution: string; referenceVideo?: boolean; referenceAudio?: boolean; referenceImage?: boolean }
+      estimateOnly: true; finalBasis: 'provider_tokens'; label: Bilingual; basis: Bilingual }
+  | { status: 'estimate'; mode: 'legacy'; model: string; currency: 'CNY'; amountCny: string; label: Bilingual; basis: Bilingual }
+  | { status: 'unavailable'; mode: 'video_token' | 'legacy' | 'none'; model: string
+      reason: 'no-price' | 'unknown-schema' | 'invalid-pricing' | 'no-matching-rule' | 'ambiguous-rules'
+        | 'missing-resolution' | 'missing-duration' | 'unknown-reference-duration' | 'no-estimated-price' | 'invalid-request'
+      pricePerMillionTokensCny?: number; label: Bilingual; basis: Bilingual }
 export interface Catalog { text: readonly TextModel[]; media: readonly MediaModel[] }
 export interface GatewayService {
   version: number
@@ -29,6 +63,10 @@ export interface Task {
   estimatedCny?: string; chargedCny?: string
   /** `pending`: the result is saved and never generated again; only the charge is still settling. */
   settlement?: 'pending' | 'settled'
+  /** The gateway's reason while the charge is pending. */
+  settlementPendingReason?: string
+  /** How the charge was measured; `tokens` = billed video Tokens. */
+  billing?: { unit?: string; unitPriceCny?: number; originalSeconds?: number; minutes?: number; tokens?: number }
 }
 export interface Target { cwd: string; folder: string; stem: string }
 
@@ -78,4 +116,6 @@ export interface MediaService {
   startAudio?(request: AudioRequest, target: Target, signal: AbortSignal): Promise<Task>
   /** The files of a finished task, renewing links and downloading again what is missing — a query, never a new generation. */
   result?(id: string, signal?: AbortSignal): Promise<readonly TaskOutput[] | undefined>
+  /** A video price estimate from the cached catalog: no upload, no task, no side effects. Absent on older account plugins. */
+  videoQuote?(request: VideoQuoteRequest, signal?: AbortSignal): Promise<VideoQuote>
 }

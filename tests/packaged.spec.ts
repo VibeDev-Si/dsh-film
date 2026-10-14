@@ -309,6 +309,79 @@ describe.skipIf(!available)('the packaged Film app', () => {
       await rm(root, { recursive: true, force: true })
     }
   }, 120_000)
+  it('prices a video by Tokens with reference lengths read from the files, carries the settlement, and opens .m4a in its own viewer', async () => {
+    const scratch = await mkdtemp(join(tmpdir(), 'film-token-'))
+    const dataDirectory = join(scratch, 'data')
+    const root = join(scratch, 'workspace')
+    await mkdir(root, { recursive: true })
+    // A data directory seeded by an older build: its media viewer is 0.1.0 and plays no .m4a.
+    await mkdir(join(dataDirectory, 'ext'), { recursive: true })
+    await writeFile(join(dataDirectory, 'ext', 'ext-media.umd.js'), `/*! toonflowExt:${JSON.stringify({ id: 'ext-media', displayName: '音视频', extensions: ['mp4', 'mp3', 'wav', 'pcm', 'opus'], resourceKind: 'file', version: '0.1.0', readme: '', configRules: [] })} */\nvoid 0\n`)
+    const videoPricing = { schemaVersion: 1, currency: 'CNY', finalBasis: 'provider_tokens', estimateBasis: 'output_plus_reference_video_seconds', estimateOnly: true, rules: [
+      { resolution: '480p', referenceVideo: false, pricePerMillionTokensCny: 60.06, estimatedPricePerSecondCny: 0.5819 },
+      { resolution: '480p', referenceVideo: true, pricePerMillionTokensCny: 36.036, estimatedPricePerSecondCny: 0.6952 },
+    ] }
+    const quote = { status: 'estimate', mode: 'video_token', model: 'video-sd-2.5(TC)', currency: 'CNY', amountCny: '8.3424', estimatedPricePerSecondCny: 0.6952, pricePerMillionTokensCny: 36.036,
+      outputSeconds: 7, referenceVideoSeconds: 5, billedSeconds: 12, rule: { resolution: '480p', referenceVideo: true }, estimateOnly: true, finalBasis: 'provider_tokens',
+      label: { zh: '预计 ¥8.34 · 最终按实际视频 Token 结算', en: '' }, basis: { zh: '¥0.6952/秒 × (7 秒输出 + 5 秒参考视频)，¥36.036/百万 Token', en: '' } }
+    const quoted: unknown[] = []
+    let output = ''
+    const tokenMedia: Record<string, unknown> = {
+      ...media,
+      models: async () => [{ id: 'video-sd-2.5(TC)', name: 'SD 2.5', kind: 'video', inputModalities: ['text', 'video'], video: { textToVideo: true, maxReferenceVideos: 1, durations: [4, 15], resolutions: ['480p'] }, videoPricing }],
+      videoQuote: async (request: unknown) => { quoted.push(request); return quote },
+      startVideo: async (_request: unknown, target: { folder: string; stem: string }) => {
+        output = join(target.folder, `${target.stem}.mp4`)
+        await writeFile(output, 'video')
+        return { id: 'video-9', status: 'completed', outputs: [{ path: output }], settlement: 'pending', settlementPendingReason: 'usage_counters_inconsistent', estimatedCny: '3.98' }
+      },
+      task: async () => ({ id: 'video-9', status: 'completed', outputs: [{ path: output }], settlement: 'settled', chargedCny: '3.98066354', estimatedCny: '3.98', billing: { tokens: 100858 } }),
+    }
+    const runtime = new FilmRuntime(() => ({ media: tokenMedia as unknown as MediaService, asker }), { dataDirectory })
+    try {
+      const url = await runtime.open({ filmWorkspace: root })
+      const { origin } = new URL(url)
+      const token = new URL(url).searchParams.get('filmAccess')!
+      const page = { origin, referer: `${origin}/s/${token}/`, 'x-toonflow-workspace': '1', 'content-type': 'application/json' }
+      const api = async (path: string, body?: unknown) => {
+        const response = await fetch(`${origin}/s/${token}/api/${path}`, { method: body === undefined ? 'GET' : 'POST', headers: page, body: body === undefined ? undefined : JSON.stringify(body) })
+        return { status: response.status, ...JSON.parse((await response.text()).trim()) as { code: number; data?: any; message?: string } }
+      }
+      const directory = (await api('workspaces/film/prepare', { workspace: root })).data.directory as string
+      // The model keeps its Token price on its way to the node.
+      expect((await api('ai/media/models')).data).toEqual([expect.objectContaining({ providerId: 'vibedev', modelId: 'video-sd-2.5(TC)', videoPricing })])
+      // A 5 s reference video in the project: its length comes from its own movie header.
+      const box = (type: string, body: Buffer) => { const head = Buffer.alloc(8); head.writeUInt32BE(8 + body.length); head.write(type, 4, 'latin1'); return Buffer.concat([head, body]) }
+      const mvhd = Buffer.alloc(100)
+      mvhd.writeUInt32BE(1000, 12)
+      mvhd.writeUInt32BE(5000, 16)
+      await mkdir(join(directory, 'assets', 'ref'), { recursive: true })
+      await writeFile(join(directory, 'assets', 'ref', 'clip.mp4'), Buffer.concat([box('ftyp', Buffer.from('isom\0\0\0\0', 'latin1')), box('mdat', Buffer.alloc(64)), box('moov', box('mvhd', mvhd))]))
+      const body = { directory, providerId: 'vibedev', modelId: 'video-sd-2.5(TC)', resolution: '480p', duration: 7, videos: [{ path: 'assets/ref/clip.mp4' }], images: 1, audios: 0 }
+      const answer = await api('film/videoQuote', body)
+      expect(answer.code, JSON.stringify(answer)).toBe(200)
+      expect(answer.data).toMatchObject({ status: 'estimate', mode: 'video_token', amountCny: '8.3424' })
+      expect(quoted).toEqual([{ model: 'video-sd-2.5(TC)', resolution: '480p', durationSeconds: 7, references: { videos: [{ durationSeconds: 5 }], images: 1, audios: 0 } }])
+      expect((await api('film/videoQuote', { ...body, videos: [{ path: '../outside.mp4' }] })).code).not.toBe(200)
+      // An account plugin without videoQuote: said so, not an error.
+      delete tokenMedia.videoQuote
+      expect((await api('film/videoQuote', { ...body, videos: [] })).data).toEqual({ status: 'unsupported' })
+      // The finished video: playable at once, its charge still being confirmed travels with it.
+      const done = await api('ai/media/generate', { directory, mediaType: 'video', providerId: 'vibedev', modelId: 'video-sd-2.5(TC)', prompt: '跳舞', outputDirectory: 'assets/node-1' })
+      expect(done.code, JSON.stringify(done)).toBe(200)
+      expect(done.data[0]).toMatchObject({ path: expect.stringMatching(/^assets\/node-1\/.+\.mp4$/), mediaType: 'video', taskId: 'video-9', settlement: 'pending', settlementPendingReason: 'usage_counters_inconsistent', estimatedCny: '3.98' })
+      expect(done.data[0]).not.toHaveProperty('chargedCny')
+      // Later: only the original task is asked.
+      expect((await api('film/settlement?id=video-9')).data).toEqual({ taskId: 'video-9', settlement: 'settled', chargedCny: '3.98066354', estimatedCny: '3.98', billing: { tokens: 100858 } })
+      // The media viewer of this build replaced the older one, and plays what Film writes.
+      const viewer = ((await api('ext/list')).data as { id: string; version: string; extensions: string[] }[]).find(item => item.id === 'ext-media')
+      expect(viewer?.version).toBe('0.2.0')
+      expect(viewer?.extensions).toEqual(expect.arrayContaining(['m4a', 'aac', 'webm', 'mov', 'm4v', 'ogg', 'flac', 'mp4', 'mp3', 'wav']))
+    } finally {
+      await runtime.close()
+      await rm(scratch, { recursive: true, force: true })
+    }
+  }, 120_000)
   it('answers every text request with the conversation model, and refuses agent loops', async () => {
     const dataDirectory = await mkdtemp(join(tmpdir(), 'film-text-'))
     const runtime = new FilmRuntime(() => ({ media, asker }), { dataDirectory })

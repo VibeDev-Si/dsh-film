@@ -41,6 +41,19 @@ const audioRequestSchema = z.object({
   }).strict(),
 }).strict()
 
+/** A video price question: the output and its references, never files or a prompt. */
+const quoteSchema = z.object({
+  request: z.object({
+    model: z.string().trim().min(1).max(256), resolution: z.string().trim().min(1).max(64).optional(),
+    durationSeconds: z.number().finite().positive().optional(),
+    references: z.object({
+      // A length that cannot be read is left out (unknown), never sent as 0.
+      videos: z.array(z.object({ durationSeconds: z.number().finite().positive().optional() }).strict()).max(64).optional(),
+      images: z.number().int().nonnegative().max(64).optional(), audios: z.number().int().nonnegative().max(64).optional(),
+    }).strict().optional(),
+  }).strict(),
+}).strict()
+
 const AUDIO_TYPES: Record<string, string> = { mp3: 'audio/mpeg', wav: 'audio/wav', m4a: 'audio/mp4', aac: 'audio/aac', ogg: 'audio/ogg', opus: 'audio/ogg', flac: 'audio/flac', webm: 'audio/webm' }
 
 function within(root: string, path: string): string {
@@ -146,6 +159,10 @@ export async function startBridge(services: { media: MediaService; asker?: OneSh
         }, { cwd: directory, folder, stem: `audio-${request.operationId ?? randomUUID()}` }, controller.signal)
         tasks.set(task.id, { directory, folder, kind: 'audio' })
         json(res, 200, await taskView(services.media, task, directory, folder, 'audio'))
+      } else if (req.method === 'POST' && path === '/media/video-quote') {
+        // The price tag beside the send button: read from the account plugin's cached catalog, nothing is sent.
+        const { request } = quoteSchema.parse(await bodyJson(req))
+        json(res, 200, typeof services.media.videoQuote === 'function' ? await services.media.videoQuote(request, controller.signal) : { status: 'unsupported' })
       } else if (req.method === 'POST' && path === '/write-prompt') {
         // The node's "帮写" star and a text node's answer: the workbench skills' rules
         // for the node, one call on the conversation's model.
@@ -264,7 +281,9 @@ async function taskView(media: MediaService, task: Task, directory: string, fold
   return {
     id: task.id, status: task.status, ...(task.error ? { error: task.error } : {}), ...(outputs ? { outputs } : {}),
     ...task.settlement === undefined ? {} : { settlement: task.settlement },
+    ...task.settlementPendingReason === undefined ? {} : { settlementPendingReason: task.settlementPendingReason },
     ...task.chargedCny === undefined ? {} : { chargedCny: task.chargedCny },
     ...task.estimatedCny === undefined ? {} : { estimatedCny: task.estimatedCny },
+    ...task.billing === undefined ? {} : { billing: task.billing },
   }
 }
