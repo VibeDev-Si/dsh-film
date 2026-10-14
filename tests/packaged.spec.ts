@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, readdir, realpath, rm, writeFile } from 'node:fs/promises'
 import { existsSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
@@ -89,7 +89,7 @@ describe.skipIf(!available)('the packaged Film app', () => {
 
   it('opens the session workspace project in its own VibeDev Film folder, and never touches what is not ours', async () => {
     const dataDirectory = await mkdtemp(join(tmpdir(), 'film-project-'))
-    const root = await mkdtemp(join(tmpdir(), 'film-workspaces-'))
+    const root = await realpath(await mkdtemp(join(tmpdir(), 'film-workspaces-')))
     const registered: { id: string; title: string; path: string }[] = []
     const runtime = new FilmRuntime(() => ({ media, asker, workspaces: () => registered }), { dataDirectory })
     type Prepared = { workspace: string; directory: string; outcome: string; canvasName: string | null; notices: string[] }
