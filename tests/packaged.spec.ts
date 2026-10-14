@@ -5,6 +5,7 @@ import { join, resolve } from 'node:path'
 import { spawn } from 'node:child_process'
 import { describe, expect, it } from 'vitest'
 import { FilmRuntime, STOP_GRACE_MS, dependencyRuntime } from '../src/runtime.js'
+import { bunRuntimeFor } from '../scripts/bun-runtime.mjs'
 import type { MediaService } from '../src/contracts.js'
 import type { OneShotServices } from '../src/oneshot.js'
 
@@ -465,8 +466,10 @@ describe.skipIf(!available)('the packaged Film app', () => {
   it('exits on its own when the host that started it is gone', async () => {
     const dataDirectory = await mkdtemp(join(tmpdir(), 'film-lifeline-'))
     // The runtime the plugin starts: a copy placed in apps/toonflow/runtime, else the installed Bun package.
-    const placed = join(packaged, 'runtime', process.platform === 'win32' ? 'bun.exe' : 'bun')
-    const runtimeExe = existsSync(placed) ? placed : dependencyRuntime() ?? placed
+    const placed = join(packaged, 'runtime', bunRuntimeFor(process.platform, process.arch).executable)
+    const runtimeExe = existsSync(placed) ? placed : dependencyRuntime()
+    expect(runtimeExe, 'the platform Bun dependency must be installed').toBeDefined()
+    if (runtimeExe === undefined) throw new Error('missing Bun runtime')
     const child = spawn(runtimeExe, [join(packaged, 'build/server/film.js')], {
       cwd: packaged, windowsHide: true, stdio: ['pipe', 'pipe', 'ignore'],
       env: { ...process.env, NODE_ENV: 'production', FILM_ACCOUNT_MODE: '1', FILM_APP_ROOT: packaged, FILM_BRIDGE_URL: 'http://127.0.0.1:9', FILM_BRIDGE_TOKEN: 'b'.repeat(64), FILM_WEB_TOKEN: 'c'.repeat(64), FILM_PARENT_PIPE: '1', TOONFLOW_DATA_DIR: dataDirectory },

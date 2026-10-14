@@ -53,6 +53,8 @@ node scripts/verify-package.mjs dsh-film-<版本>.tgz      # 用打好的包启�
 
 `assemble-app.mjs` 把工作台的来源提交写进 `apps/toonflow/SOURCE.json`，并拒绝有未提交改动或提交未推送到 `dsh-film-studio` 的工作台；本地调试可加 `--unreleased`，但这样组装的包 `verify-package.mjs` 不放行（调试时可加 `--allow-unreleased`）。
 
+`node scripts/install-app.mjs <安装目录> [包根目录或 .tgz]` 会在暂存目录检查 Web 资源与本机 Bun 运行时；没有内置运行时时先安装生产依赖，验证通过后才替换原安装。`npm run check:browser` 可使用 macOS 的 Chrome 或 Edge，并从插件依赖解析 Bun。
+
 发布顺序：
 
 1. 工作台：提交，推送到 `dsh-film-studio` 的 `workbench` 分支，构建（`bun run build && bun run build:nodes`）。

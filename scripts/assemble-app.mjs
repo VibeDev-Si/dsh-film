@@ -11,7 +11,7 @@
  *
  * The layout the packaged server expects is `<root>/build/{server,web,tools,nodes,ext,providers,skills}`,
  * with `build/server/film.js` as the entry the plugin starts. The plugin's own
- * bundled runtime is copied to `apps/toonflow/runtime/`, so a user never needs Bun.
+ * runtime is installed as the platform-specific optional Bun dependency.
  *
  * `vendor/toonflow-extras/` holds third-party nodes and tools that exist in the user's
  * installed desktop app but not in the ToonFlow build; they are copied on top of the
@@ -27,8 +27,10 @@ import { execFileSync } from 'node:child_process'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { workbenchSource } from './workbench-source.mjs'
+import { bunRuntimeFor } from './bun-runtime.mjs'
 
 const here = resolve(dirname(fileURLToPath(import.meta.url)), '..')
+const { packageName, executable } = bunRuntimeFor(process.platform, process.arch)
 const flags = process.argv.slice(2).filter(argument => argument.startsWith('--'))
 const requested = process.argv.slice(2).find(argument => !argument.startsWith('--')) ?? process.env.TOONFLOW_SOURCE
 if (requested === undefined || requested.trim() === '') {
@@ -97,13 +99,13 @@ if (existsSync(vendor)) {
 const retiredTools = ['askUser', 'browser', 'webFetch', 'webSearch']
 for (const name of retiredTools) rmSync(join(target, 'build/tools', `${name}.tool.js`), { force: true })
 
-// The runtime is the official Bun package the plugin depends on (@oven/bun-windows-x64), installed with it;
+// The runtime is the official Bun package the plugin depends on (@oven/bun-<platform>-<arch>), installed with it;
 // a copy in apps/toonflow/runtime is only placed on request (FILM_PLACE_RUNTIME=1), for a checkout used without installing.
 rmSync(join(target, 'runtime'), { recursive: true, force: true })
 if (process.env.FILM_PLACE_RUNTIME === '1') {
   const bun = process.env.BUN_PATH ?? execFileSync(process.platform === 'win32' ? 'where' : 'which', ['bun'], { encoding: 'utf8' }).split(/\r?\n/)[0].trim()
   mkdirSync(join(target, 'runtime'), { recursive: true })
-  copyFileSync(bun, join(target, 'runtime', process.platform === 'win32' ? 'bun.exe' : 'bun'))
+  copyFileSync(bun, join(target, 'runtime', executable))
 }
 
 // Which workbench commit this build is: packed into the npm archive, checked by verify-package.mjs.
@@ -116,7 +118,7 @@ for (const part of parts) {
   const directory = join(target, 'build', part)
   if (existsSync(directory)) console.log(`  build/${part.padEnd(10)} ${mb(bytes(directory))}`)
 }
-const placedRuntime = join(target, 'runtime', process.platform === 'win32' ? 'bun.exe' : 'bun')
-console.log(existsSync(placedRuntime) ? `  runtime/bun  ${mb(statSync(placedRuntime).size)}` : '  runtime      由依赖 @oven/bun-windows-x64 提供')
+const placedRuntime = join(target, 'runtime', executable)
+console.log(existsSync(placedRuntime) ? `  runtime/bun  ${mb(statSync(placedRuntime).size)}` : `  runtime      由本机可选依赖 ${packageName} 提供`)
 for (const extra of extras) console.log(`  内置第三方包 ${extra}  ${mb(statSync(join(target, extra)).size)}`)
 console.log(`合计 ${mb(bytes(target))}`)

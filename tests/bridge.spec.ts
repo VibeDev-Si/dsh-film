@@ -1,4 +1,4 @@
-import { mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { mkdtemp, realpath, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -9,7 +9,7 @@ import type { OneShotServices } from '../src/oneshot.js'
 const cleanup: Array<() => Promise<unknown>> = []
 afterEach(async () => { for (const close of cleanup.splice(0).reverse()) await close() })
 async function setup(options: { withoutAsker?: boolean } = {}) {
-  const cwd = await mkdtemp(join(tmpdir(), 'film-bridge-'))
+  const cwd = await realpath(await mkdtemp(join(tmpdir(), 'film-bridge-')))
   cleanup.push(() => rm(cwd, { recursive: true, force: true }))
   const imageModel = { id: 'image-1', name: 'Image', kind: 'image', inputModalities: ['text'] }
   const media: MediaService = { models: vi.fn(async () => [imageModel]), generateImages: vi.fn(async (_request, target) => {

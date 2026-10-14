@@ -23,6 +23,7 @@ import { createServer } from 'node:net'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { bunRuntimeFor, installedBunRuntime } from './bun-runtime.mjs'
 
 const here = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const root = resolve(process.argv[2] ?? join(here, 'apps/toonflow'))
@@ -31,6 +32,7 @@ const browser = process.argv[3] ?? [
   'C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe',
   'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
   '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+  '/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge',
   '/usr/bin/google-chrome', '/usr/bin/chromium', '/usr/bin/microsoft-edge',
 ].find(path => existsSync(path))
 if (browser === undefined) { console.log('跳过：本机没有 Edge / Chrome'); process.exit(0) }
@@ -96,7 +98,11 @@ const bridgeUrl = `http://127.0.0.1:${bridge.address().port}`
 
 // 1. The workbench server, exactly as the plugin starts it.
 const token = 'e'.repeat(64)
-const server = spawn(join(root, 'runtime', process.platform === 'win32' ? 'bun.exe' : 'bun'), [join(root, 'build/server/film.js')], {
+const { packageName, executable } = bunRuntimeFor(process.platform, process.arch)
+const placedRuntime = join(root, 'runtime', executable)
+const runtime = existsSync(placedRuntime) ? placedRuntime : installedBunRuntime(here)
+if (runtime === undefined) throw new Error(`缺少 Bun 运行时：请安装本机可选依赖 ${packageName}`)
+const server = spawn(runtime, [join(root, 'build/server/film.js')], {
   cwd: root, windowsHide: true, stdio: ['pipe', 'pipe', 'pipe'],
   env: { ...process.env, NODE_ENV: 'production', FILM_ACCOUNT_MODE: '1', FILM_APP_ROOT: root, FILM_BRIDGE_URL: bridgeUrl, FILM_BRIDGE_TOKEN: 'b'.repeat(64), FILM_WEB_TOKEN: token, FILM_CONTROL_TOKEN: 'c'.repeat(64), FILM_PARENT_PIPE: '1', TOONFLOW_DATA_DIR: data },
 })

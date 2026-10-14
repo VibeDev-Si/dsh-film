@@ -24,8 +24,10 @@ import { execFileSync } from 'node:child_process'
 import { tmpdir } from 'node:os'
 import { basename, dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { bunRuntimeFor, installedBunRuntime } from './bun-runtime.mjs'
 
 const here = resolve(dirname(fileURLToPath(import.meta.url)), '..')
+const { packageName, executable } = bunRuntimeFor(process.platform, process.arch)
 const target = process.argv[2]
 if (target === undefined || target.trim() === '') {
   console.error('用法：node scripts/install-app.mjs <安装目录> [包根目录]\n（包根目录默认是本仓库；也可以给一个 .tgz 或已解包的 package 目录。）')
@@ -63,9 +65,10 @@ function inspect(root) {
   const required = [
     'package.json', 'lib/index.js', 'client/client.js', 'cordis.patch.yml',
     'apps/toonflow/build/server/film.js', 'apps/toonflow/build/web/index.html',
-    'apps/toonflow/runtime/bun.exe',
   ]
+  const placedRuntime = join(root, 'apps/toonflow/runtime', executable)
   return {
+    runtime: existsSync(placedRuntime) ? placedRuntime : installedBunRuntime(root),
     missingFiles: required.filter(relative => !existsSync(join(root, relative))),
     missingAssets: missing,
     assets: referenced.length,
@@ -79,11 +82,27 @@ const staging = `${install}.new-${Date.now()}`
 rmSync(staging, { recursive: true, force: true })
 mkdirSync(staging, { recursive: true })
 const staged = stage(staging)
-const report = inspect(staged)
+let report = inspect(staged)
 if (report.missingFiles.length > 0 || report.missingAssets.length > 0) {
   console.error('✗ 新产物不完整，未安装（原目录保持不变）')
   for (const file of report.missingFiles) console.error(`  缺少 ${file}`)
   for (const asset of report.missingAssets) console.error(`  index.html 引用的资源不存在：${asset}`)
+  rmSync(staging, { recursive: true, force: true })
+  process.exit(1)
+}
+if (report.runtime === undefined) {
+  try {
+    execFileSync(process.platform === 'win32' ? 'npm.cmd' : 'npm', ['install', '--omit=dev', '--omit=peer', '--ignore-scripts', '--no-package-lock', '--no-audit', '--no-fund'],
+      { cwd: staged, stdio: 'inherit', shell: process.platform === 'win32' })
+    report = inspect(staged)
+  } catch (error) {
+    console.error(`✗ 无法安装本机 Bun 依赖 ${packageName}：${error instanceof Error ? error.message : String(error)}`)
+    rmSync(staging, { recursive: true, force: true })
+    process.exit(1)
+  }
+}
+if (report.runtime === undefined || !existsSync(report.runtime)) {
+  console.error(`✗ 缺少本机 Bun 运行时 ${packageName}，未安装（原目录保持不变）`)
   rmSync(staging, { recursive: true, force: true })
   process.exit(1)
 }
@@ -142,7 +161,7 @@ if (existsSync(install)) {
 rmSync(backup, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 })
 rmSync(staging, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 })
 const after = inspect(install)
-if (after.missingFiles.length > 0 || after.missingAssets.length > 0) {
+if (after.missingFiles.length > 0 || after.missingAssets.length > 0 || after.runtime === undefined || !existsSync(after.runtime)) {
   console.error('✗ 安装后的目录不完整：', [...after.missingFiles, ...after.missingAssets].join(', '))
   process.exit(1)
 }
