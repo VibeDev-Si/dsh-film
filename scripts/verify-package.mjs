@@ -17,7 +17,7 @@
  * Models are not exercised (they need a signed-in VibeDev account). Exit code 0\n * means the artifact boots and gates the page.
  */
 import { spawn } from 'node:child_process'
-import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs'
+import { copyFileSync, existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { execFileSync } from 'node:child_process'
 import { createInterface } from 'node:readline'
 import { tmpdir } from 'node:os'
@@ -38,7 +38,10 @@ if (argument !== undefined) {
     console.log(`安装 ${argument}（含依赖）…`)
     // A project of its own, so npm installs here and never into a parent folder.
     writeFileSync(join(scratch, 'package.json'), JSON.stringify({ name: 'film-verify', private: true }))
-    execFileSync(process.platform === 'win32' ? 'npm.cmd' : 'npm', ['install', '--no-save', '--omit=peer', '--ignore-scripts', '--no-audit', '--no-fund', resolve(argument)],
+    // npm.cmd needs a shell on Windows. Pass a fixed relative name, so spaces or shell characters in the
+    // user's archive path cannot split or change the install command; this is a byte-for-byte copy.
+    copyFileSync(resolve(argument), join(scratch, 'candidate.tgz'))
+    execFileSync(process.platform === 'win32' ? 'npm.cmd' : 'npm', ['install', '--no-save', '--omit=peer', '--ignore-scripts', '--no-audit', '--no-fund', './candidate.tgz'],
       { cwd: scratch, stdio: 'inherit', shell: process.platform === 'win32' })
     const name = JSON.parse(execFileSync('tar', ['-xOzf', resolve(argument), 'package/package.json'], { encoding: 'utf8' })).name
     packageDirectory = join(scratch, 'node_modules', name)

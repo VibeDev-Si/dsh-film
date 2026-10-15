@@ -202,7 +202,7 @@ try {
   if (menu.error !== undefined) fail(menu.error)
   else if ((menu.nodes ?? []).length >= seeded.length) pass(`右键"添加节点"列出 ${menu.nodes.length} 个节点：${menu.nodes.join('、')}`)
   else fail(`右键"添加节点"只有 ${(menu.nodes ?? []).length} 个：${(menu.nodes ?? []).join('、') || '（空）'}`)
-  // Add a 视频生成 node from that menu: its "VibeDev 帮写" star sits right before the send button.
+  // Add a 视频生成 node: its "VibeDev 帮写" star sits before the send group (price tag + send button).
   const star = await canvas.evaluate(`(async () => {
     const sleep = ms => new Promise(r => setTimeout(r, ms));
     const item = [...document.querySelectorAll('.el-dropdown-menu__item')].find(entry => entry.offsetParent !== null && entry.innerText.trim() === '视频生成');
@@ -213,11 +213,11 @@ try {
     if (!button) return { error: '视频生成节点里没有帮写星星' };
     const next = button.nextElementSibling;
     const a = button.getBoundingClientRect(), b = next?.getBoundingClientRect();
-    return { label: button.getAttribute('aria-label'), nextIsSend: !!next?.classList.contains('sendButton'), gap: b ? Math.round(b.left - a.right) : null,
+    return { label: button.getAttribute('aria-label'), nextIsSendGroup: !!next?.classList.contains('sendGroup') && !!next.querySelector('.sendButton'), gap: b ? Math.round(b.left - a.right) : null,
       oldTextButton: [...document.querySelectorAll('.vue-flow__node button')].some(entry => entry.innerText.trim() === 'VibeDev 写') };
   })()`) ?? {}
   if (star.error !== undefined) fail(star.error)
-  else if (star.label === 'VibeDev 帮写' && star.nextIsSend && star.gap !== null && star.gap >= 0 && star.gap <= 12 && !star.oldTextButton) pass(`视频生成节点：帮写星星紧挨发送按钮（间距 ${star.gap}px），旧的"VibeDev 写"已去掉`)
+  else if (star.label === 'VibeDev 帮写' && star.nextIsSendGroup && star.gap !== null && star.gap >= 0 && star.gap <= 12 && !star.oldTextButton) pass(`视频生成节点：帮写星星紧挨发送区（价格标签与发送按钮，间距 ${star.gap}px），旧的"VibeDev 写"已去掉`)
   else fail(`帮写星星位置不对：${JSON.stringify(star)}`)
   // Click it: the page sends the node brief (via the workbench server, which adds the
   // conversation id from the link) and the answer lands in the editor.
